@@ -1,0 +1,3203 @@
+import tkinter as tk
+from tkinter import ttk
+from tkinter import *
+from tkinter.ttk import *
+from PIL import Image, ImageTk
+import random
+from dataclasses import dataclass
+import smtplib
+import openpyxl
+import tkinter.scrolledtext as st
+from tkinter import messagebox
+import datetime
+
+
+# Data class is used to store the information of the Students that attended at least 1 event in a quarter.
+@dataclass
+class informationStudents:
+   name: str
+   grade: int
+   ID: int
+   points: int
+   email: str
+   events: list
+
+
+
+
+# This Data class is used to store the ongoing events and the codes that go with the event to get a point.
+@dataclass
+class eventsAndCodes:
+   event: str
+   code: int
+   people: list
+
+
+
+
+# This Data class is used for the Q&A in the Help Menu, the student enters a question, then an admin can
+# then answer that question and the answered question will go in a list which other students can see.
+@dataclass
+class answeredQuestions:
+   question: str
+   answer: str
+
+
+
+
+# This data class is used to store upcoming events in the upcomingEventsList list.
+@dataclass
+class eventsUpcoming:
+   place: str
+   date: str
+   event: str
+
+
+
+
+# All the lists used for the program, including prizes and quarters.
+studentsInformation = []
+validCodes = []
+upcomingEventsList = []
+pastEventsList = []
+prizes = ["Book from the Library", "Free Student Store Drink", "Heritage T-Shirt", "Extra Credit", "Bag of Candy"]
+studentQuestions = []
+studentAnsweredQuestions = []
+removedStudents = []
+currentQuarter = "Quarter 1"
+removedStudentsPastQuarter = []
+studentsInformationPastQuarter = []
+
+
+# Example information for the program.
+validCodes.append(eventsAndCodes("Basketball Game", 123123, []))
+upcomingEventsList.append(eventsUpcoming("Heritage High School", "06/05/2023 6:00PM", "Football Game"))
+pastEventsList.append(eventsUpcoming("Heritage High School", "04/05/2023 1:00PM", "Opening Ceremony"))
+studentQuestions.append("This is an example question for the presentation.")
+studentAnsweredQuestions.append(answeredQuestions("This is an example student question for the presentation",
+                                                 "This is an example admin answer for the presentation"))
+
+
+# declares all of the workbooks used.
+wb = openpyxl.Workbook()
+wb3 = openpyxl.Workbook()
+wb4 = openpyxl.Workbook()
+wb5 = openpyxl.Workbook()
+wb6 = openpyxl.Workbook()
+wb7 = openpyxl.Workbook()
+
+
+# This function adds the students information into the Excel file where the data is stored, if the
+# user is new to attending events, it will enter a whole new line with the information, if the user
+# has already attended an event, it will just add a point to their points.
+def addInfotoExcel(status, name, grade, identity, email):
+   global excelRowValue
+   wb = openpyxl.Workbook()
+   sheet = wb.active
+   wb_obj = openpyxl.load_workbook("studentsInfo.xlsx")
+   sheet_obj = wb_obj.active
+
+
+   # If user is new, then add a row and add their information to that row.
+   if (status == "new"):
+       sheet.cell(row=sheet_obj.max_row + 1, column=1).value = name
+       sheet.cell(row=sheet_obj.max_row + 1, column=2).value = grade
+       sheet.cell(row=sheet_obj.max_row + 1, column=3).value = identity
+       sheet.cell(row=sheet_obj.max_row + 1, column=4).value = 1
+       sheet.cell(row=sheet_obj.max_row + 1, column=5).value = email
+
+
+   # if the user is not new, then find their name in the database and add a point to their total points.
+   elif (status == "old"):
+       for i in range(1, sheet_obj.max_row + 1):
+
+
+           # Finds the user via email because it is unique.
+           if (sheet_obj.cell(row=i, column=5).value == email):
+               sheet.cell(row=i, column=4).value += 1
+   sheet.cell(row=1, column=6).value = "Number of Students: " + str(sheet_obj.max_row)
+   wb.save(filename="studentsInfo.xlsx")
+
+
+
+
+# This function sends an email to the user if they received a point, or if they won a prize.
+# eReceiver is the Email, and classification can either be Point Notification, Most Points or Random Winner.
+# If the classification is Point Notification, then prize means what event they went to.
+def sendMail(eReceiver, name, classification, prize):
+   global message, messageFormat
+
+
+   # Starts the process by logging in to the email used to send the users.
+   mail = smtplib.SMTP('smtp.gmail.com', 587)
+   mail.starttls()
+   mail.login("heritagepointsystem@gmail.com", "abts mkkz rmyx oseu")
+
+
+   # If classification is not Point Notification, it opens the file containing the message for people who were
+   # selected as winners, else if classification is Point Notification, it opens the file containing the message
+   # for people who received a point and attended an event.
+   if (classification != "Point Notification"):
+       message = open('eTextPrize.txt')
+   else:
+       message = open('pointNotification.txt')
+
+
+   # This if statement sends an email to the people with the Most Points, stating how they won and what prize they got.
+   if (classification == "Most Points"):
+       messageFormat = 'Subject: {}\n\n{}'.format("Most Points Winner!",
+                                                  "Hello " + name + ", You have been chosen as a winner " +
+                                                  "for most points accumulated during this quarter!" + message.read() + prize)
+       mail.sendmail("heritagepointsystem@gmail.com", eReceiver, messageFormat)
+
+
+   # This if statement sends an email to the people who were chosen as a Random Winner, stating how they won and what prize they got.
+   elif (classification == "Random Winner"):
+       messageFormat = 'Subject: {}\n\n{}'.format("Random Chosen Winner!",
+                                                  "Hello " + name + ", You have been chosen as a random winner to win a prize"
+                                                  + " during this quarter!" + message.read() + prize)
+       mail.sendmail("heritagepointsystem@gmail.com", eReceiver, messageFormat)
+
+
+   # sends an email to people who have more than 5 or 10 points and got chosen as a winner.
+   elif (classification == "Guaranteed"):
+       messageFormat = 'Subject: {}\n\n{}'.format("Guaranteed Winner!",
+                                                  "Hello " + name + ", You have been chosen as a winner because you have " +
+                                                  "more than 5 or more than 10 points during this quarter!" + message.read() +
+                                                  prize)
+       mail.sendmail("heritagepointsystem@gmail.com", eReceiver, messageFormat)
+
+
+   # This if statement sends an email to the people who received a point, stating that they received a point.
+   elif (classification == "Point Notification"):
+
+
+       # In this instance, prize means what event the user attended.
+       messageFormat = 'Subject: {}\n\n{}'.format("Point Received", "Hello " +
+                                                  name + ', ' + message.read() + prize)
+       mail.sendmail("heritagepointsystem@gmail.com", eReceiver, messageFormat)
+
+
+   mail.quit()
+   message.close()
+
+
+
+
+# This function adds a point to the users total points, once all the required entries are met, it runs this function which
+# adds a point, runs the function to send the information into Excel, and runs the function to email the user.
+# In the parameters, event means the event the user attended and eventPosition means what position the event is in the validCodes list.
+def pointValue(name, grade, identity, email, event, eventPosition):
+   added = False
+   for i in range(0, len(studentsInformation)):
+
+
+       # If identity is on the studentsInformation list, that means that the user has already attended an event, and
+       # it adds a point to their points, and it sends "old" in the addInfotoExcel function, "old" meaning the user already
+       # has attended an event.
+       if (identity == studentsInformation[i].ID):
+           # Sends an email, adds the information to Excel, then gives the user a point.
+           sendMail(studentsInformation[i].email, studentsInformation[i].name, "Point Notification", event)
+           addInfotoExcel("old", studentsInformation[i].name, studentsInformation[i].grade,
+                          studentsInformation[i].ID, studentsInformation[i].email)
+           studentsInformation[i].points += 1
+
+
+           # This adds the person to the list of people who attended the specific event in which you can access
+           # in the admin screen described later in the program in the admin section and functions.
+           person = informationStudents(studentsInformation[i].name, studentsInformation[i].grade,
+                                        studentsInformation[i].ID, studentsInformation[i].points,
+                                        studentsInformation[i].email, studentsInformation[i].events)
+           studentsInformation[i].events.append(event + str(datetime.date.today()))
+           validCodes[eventPosition].people.append(person)
+           added = True
+
+
+   # if added is False, that means the program didn't go through the if statement through the for loop above, and it means the user
+   # is a new attendee, and adds the user as a new user in Excel.
+   if (added == False):
+       # Creates the student, sends an email, adds the new entry in Excel, and appends them in a list of people who attended that specific event.
+       student = informationStudents(name, grade, identity, 1, email, [event + ' ' + str(datetime.date.today())])
+       studentsInformation.append(student)
+       sendMail(email, name, "Point Notification", event)
+       addInfotoExcel("new", name, grade, identity, email)
+       validCodes[eventPosition].people.append(student)
+
+
+codeShowerBoolean = False
+# This function is used to reset the code and event in the admin part of the program, the admin can use it if
+# they decide not to run that event anymore.
+def resetCodeFunc():
+   global eventRunning, randomCode, codeShower, eventChooser, codeShowerBoolean
+
+
+   # If this is true, then there is a code to reset.
+   if (codeShowerBoolean == True):
+       eventChooser.delete(first=0, last=len(eventChooser.get()))
+       randomCode = ""
+       codeShower.destroy()
+       codeShowerBoolean = False
+
+
+   # Else, there isn't one.
+   if (codeShowerBoolean == False):
+
+
+       # First label to get rid of all the other labels, second label to tell the admin there was no code to reset.
+       tk.Label(admin, text="Events and Codes stored in the 'eventsAndCodes.xlsx' Excel file.",
+                font=("Arial bold", 15), fg = "light blue",
+                bg="light blue", wraplength=400).place(x=842, y=527)
+       tk.Label(admin, text = "No Code to Reset", font = ("Arial bold", 15), fg = "red",
+                bg = "light blue").place(x = 910, y = 527)
+
+
+
+
+# This function generates a random code, it then can be added to the list of ongoing events, chosen by the admin.
+# The codes are only 6 digits, going from 100000-999999.
+def randomCodeChooser():
+   global randomCode, codeShower, SuccessAddedLabel, unsuccessfulAddedLabel, codeShowerBoolean
+   randomCode = tk.StringVar()
+   randomCode = random.randint(100000, 999999)
+
+
+   # Label placed, so it hides all the other error labels.
+   tk.Label(admin, text="Events and Codes stored in the 'eventsAndCodes.xlsx' Excel file.", font=("Arial bold", 15),
+            bg="light blue", wraplength=400, fg = "light blue").place(x=842, y=527)
+
+
+   # Shows the code to the admin.
+   codeShower = tk.Label(admin, text=randomCode, font = ("Arial bold", 15), bg = "light blue")
+   codeShower.place(x=960, y=527)
+   codeShowerBoolean = True
+
+
+
+
+# This function confirms the code that was generated and adds the code and event to the list of ongoing events and details described in the function.
+# Before confirming though, the admin is required to pick an event before submitting.
+def codeConfirmer():
+   global randomCode, eventRunning, codeShower, randomCode, eventChooser
+   duplicateEvent = False
+
+
+   # This means the admin chose an event.
+   if (eventChooser.get() != ""):
+       # For loop used to check if the admin is adding a duplicate event that is already ongoing.
+       for i in range(0, len(validCodes)):
+           if (eventChooser.get() == validCodes[i].event):
+               duplicateEvent = True
+
+
+       # If the admin isn't adding a duplicate event, then it runs this If statement that adds the event to the ongoing events
+       # and puts a label that says success.
+       if (duplicateEvent == False):
+
+
+           # Appends the information into the list of validCodes.
+           information = eventsAndCodes(eventChooser.get(), int(randomCode), [])
+           validCodes.append(information)
+
+
+           # Appends the event information into this Excel sheet.
+           sheet = wb7.active
+           wb_obj = openpyxl.load_workbook("eventsAndCodes.xlsx")
+           sheet_obj = wb_obj.active
+           sheet.cell(row = sheet_obj.max_row + 1, column=1).value = eventChooser.get()
+           sheet.cell(row = sheet_obj.max_row + 1, column=2).value = randomCode
+           wb7.save(filename="eventsAndCodes.xlsx")
+
+
+
+
+           # Label so it hides all the other error messages.
+           tk.Label(admin, text="Events and Codes stored in the 'eventsAndCodes.xlsx' Excel file.",
+                    font=("Arial bold", 15), fg = "light blue",
+                    bg="light blue", wraplength=400).place(x=842, y=527)
+
+
+           # Shows that the process was a success.
+           tk.Label(admin, text="Successfully Added!", bg = "light blue", font = ("Arial bold", 15)).place(x = 897, y = 527)
+
+
+       # If the admin did add a duplicate event, then it puts a label saying its duplicate and to remove the ongoing event
+       # or the admin can just leave it be.
+       elif (duplicateEvent == True):
+
+
+           # Label so it hides all the other error messages
+           tk.Label(admin, text="Events and Codes stored in the 'eventsAndCodes.xlsx' Excel file.",
+                    font=("Arial bold", 15), fg = "light blue",
+                    bg="light blue", wraplength=400).place(x=842, y=527)
+
+
+           tk.Label(admin, text="Duplicate Event, please remove the previous event.",
+                    wraplength=300, fg="red", font=("Arial bold", 15), bg="light blue").place(x=865, y=527)
+
+
+       # Destroys the letters in "eventChooser" and resets the code
+       # eventChooser being a Combobox full of the events that the admin can run.
+       eventChooser.delete(first=0, last=len(eventChooser.get()))
+       randomCode = ""
+       codeShower.destroy()
+   elif (eventChooser.get() == ""):
+
+
+       # Label so all the other error messages disappear, and the other label tells the admin to choose an event.
+       tk.Label(admin, text="Events and Codes stored in the 'eventsAndCodes.xlsx' Excel file.",
+                font=("Arial bold", 15), fg = "light blue",
+                bg="light blue", wraplength=400).place(x=842, y=527)
+       tk.Label(admin, text = "Choose an Event", fg = "red",
+                bg = "light blue", font = ("Arial bold", 15)).place(x = 912, y = 527)
+
+
+
+
+# This function just tells the admin that the information they are looking for is in this Excel file.
+def showRunningEvents():
+   tk.Label(admin, text = "Events and Codes stored in the 'eventsAndCodes.xlsx' Excel file.", font = ("Arial bold", 15),
+            bg = "light blue", wraplength=400).place(x = 842, y = 527)
+
+
+
+
+# This function deletes the ongoing event chosen by the admin, in the list of ongoing events, it shows a number next
+# to the event, the admin can enter the number next to the event, submit it, then it will run this function which will delete it.
+# The admin can view ongoing events in the showRunningEvents function which is used by a button in the admin screen.
+def delEventandCode():
+   global deleteEvents_spinbox
+   if (deleteEvents_spinbox.get() != ""):
+       validCodes.pop(int(deleteEvents_spinbox.get()) - 1)
+       deleteEvents_spinbox.delete(first=0, last=len(deleteEvents_spinbox.get()))
+
+
+       # Deletes the event from the Excel file.
+       sheet = wb7.active
+       sheet.delete_rows(int(deleteEvents_spinbox.get()), 1)
+       wb7.save(filename = "eventsAndCodes.xlsx")
+
+
+       tk.Label(admin, text = "Success", font = ("Arial bold", 15), bg = "light blue").place(x = 577, y = 255)
+   elif (deleteEvents_spinbox.get() == ""):
+       tk.Label(admin, text = "Choose a Number", fg = "red",
+                bg = "light blue", font = ("Arial bold", 15)).place(x = 534, y = 255)
+
+
+
+
+# This function is used to answer the questions that were asked by users, the admin first enters the answer to the
+# question in an entry box, then clicks submit answer, then this function runs with more details explained in the function.
+def answerQuestionFunc():
+   global studentQuestions, howManyQuestions, QuestionToAnswer, answer_entry
+
+
+   # If there are questions to answer, then the function continues.
+   if (len(studentQuestions) != 0):
+       # If the answer the admin gave is empty, then it says that and doesn't do anything else after.
+       if (len(answer_entry.get()) == 0):
+
+
+           # Canvas placed so the error messages are hidden behind the canvas.
+           # Then shows a label saying the admins answer was empty.
+           Canvas(admin, height=315, width=1250, bg="light blue", highlightthickness=0).place(x=-5, y=460)
+           tk.Label(admin, text="Answer is Empty", font=("Arial bold", 15), bg="light blue", fg="red").place(x = 544, y = 465)
+
+
+       # Else if the answer isn't empty, then it runs the following code, more details explained in the else statement
+       else:
+           # Stores information in the answeredQuestion variable and appends it to the answered questions list, which
+           # is then shown in the help menu in a list of questions and answers.
+           answeredQuestion = answeredQuestions(studentQuestions[0], answer_entry.get())
+           studentAnsweredQuestions.append(answeredQuestion)
+
+
+           # The chunk of code below says that the answer was added, then it destroys the asked question in the list, updates the
+           # label saying how many questions are left, then deletes the answer the admin gave in the entry and destroys
+           # the question shown that was just answered.
+
+
+           # Canvas placed so all the other messages are hidden behind the canvas.
+           Canvas(admin, height=315, width=1250, bg="light blue", highlightthickness=0).place(x=-5, y=460)
+           tk.Label(admin, text="Answer Added!", font=("Arial bold", 15), bg="light blue").place(x = 551, y = 465)
+           studentQuestions.pop(0)
+           howManyQuestions.destroy()
+           howManyQuestions = tk.Label(admin, text="You have " + str(len(studentQuestions)) + " question(s) to answer",
+                                       bg="light blue", fg = "white", font = ("Arial bold", 20))
+           howManyQuestions.place(x=395, y=95)
+           answer_entry.delete(first=0, last=len(answer_entry.get()))
+           QuestionToAnswer.destroy()
+
+
+           # If there are still questions left, it then shows the next question to answer.
+           if (len(studentQuestions) != 0):
+               QuestionToAnswer = tk.Label(admin, text=studentQuestions[0], bg="light blue", wraplength=500,
+                                           font=("Arial bold", 15))
+               QuestionToAnswer.place(x=372, y=140)
+
+
+           # Else if there are no questions left, then it says that there aren't any more questions to answer.
+           else:
+               QuestionToAnswer = tk.Label(admin, text="No more Questions to Answer!", bg="light blue",
+                                           font=("Arial bold", 20))
+               QuestionToAnswer.place(x=415, y=165)
+   elif (len(studentQuestions) == 0):
+
+
+       # Placed so all the other error messages are hidden behind the canvas.
+       Canvas(admin, height=315, width=1250, bg="light blue", highlightthickness=0).place(x=-5, y=460)
+       tk.Label(admin, text = "No Questions to Answer", fg = "red", bg = "light blue",
+                font = ("Arial bold", 15)).place(x = 507, y = 465)
+
+
+
+
+# This function allows admins to view the attendees of what event they chose to look at, the function will return an Excel sheet named "attendees.xlsx"
+# stating the event and code at the top, then all the students name, grade, ID, points and emails and also total attendance.
+# In order for the admin to view the attendees, the admin must enter the number that is listed beside the event in the showRunningEvents function.
+def viewAttendees():
+   global viewPeopleInEventSpinbox
+   if (viewPeopleInEventSpinbox.get() != ""):
+       # Sets up the Excel sheet by adjusting the column widths, and adding titles to the first column.
+       wb2 = openpyxl.Workbook()
+       sheet = wb2.active
+       wb_obj = openpyxl.load_workbook("studentsInfo.xlsx")
+       sheet_obj = wb_obj.active
+       sheet.cell(row=1, column=1).value = "Event: " + validCodes[int(viewPeopleInEventSpinbox.get()) - 1].event
+       sheet.cell(row=1, column=2).value = "Code: " + str(validCodes[int(viewPeopleInEventSpinbox.get()) - 1].code)
+       sheet.cell(row=2, column=1).value = "Student Name"
+       sheet.cell(row=2, column=2).value = "Grade"
+       sheet.cell(row=2, column=3).value = "Student ID"
+       sheet.cell(row=2, column=4).value = "Points"
+       sheet.cell(row=2, column=5).value = "Email"
+       sheet.column_dimensions['A'].width = 30
+       sheet.column_dimensions['B'].width = 15
+       sheet.column_dimensions['C'].width = 25
+       sheet.column_dimensions['E'].width = 40
+
+
+       # For all the people who attended the event, their information will be added to the Excel sheet.
+       for i in range(3, len(validCodes[int(viewPeopleInEventSpinbox.get()) - 1].people) + 3):
+           sheet.cell(row=i, column=1).value = validCodes[int(viewPeopleInEventSpinbox.get()) - 1].people[i - 3].name
+           sheet.cell(row=i, column=2).value = validCodes[int(viewPeopleInEventSpinbox.get()) - 1].people[i - 3].grade
+           sheet.cell(row=i, column=3).value = validCodes[int(viewPeopleInEventSpinbox.get()) - 1].people[i - 3].ID
+           sheet.cell(row=i, column=4).value = validCodes[int(viewPeopleInEventSpinbox.get()) - 1].people[i - 3].points
+           sheet.cell(row=i, column=5).value = validCodes[int(viewPeopleInEventSpinbox.get()) - 1].people[i - 3].email
+       sheet.cell(row=1, column=3).value = "Total Attendance: " + str(sheet_obj.max_row - 1)
+
+
+       # Saves the file, deletes the number the admin entered the entry, then says it was a success.
+       wb2.save(filename="attendees.xlsx")
+       viewPeopleInEventSpinbox.delete(first=0, last=len(viewPeopleInEventSpinbox.get()))
+       tk.Label(admin, text = "Success", font = ("Arial bold", 15), bg = "light blue").place(x = 580, y = 527)
+   elif (viewPeopleInEventSpinbox.get() == ""):
+       tk.Label(admin, text="Choose a Number", fg="red",
+                bg="light blue", font=("Arial bold", 15)).place(x=534, y=527)
+
+
+
+
+# This function allows admins to delete unwanted questions given by the user, if the question has already been answered
+# or the question is just a bunch of gibberish, then the admin can use this function via button to delete it.
+def delQuestion():
+   global QuestionToAnswer, howManyQuestions
+
+
+   # If there are questions, then the function continues.
+   if (len(studentQuestions) != 0):
+       # Deletes question
+       QuestionToAnswer.destroy()
+       studentQuestions.pop(0)
+
+
+       # If there are still questions, then it shows the admin the next question
+       if (len(studentQuestions) != 0):
+           QuestionToAnswer = tk.Label(admin, text=studentQuestions[0], bg="light blue", wraplength=500,
+                                       font=("Arial bold", 15))
+           QuestionToAnswer.place(x=372, y=140)
+
+
+       # Else if there are no questions left, then it says that there aren't any more questions to answer.
+       else:
+           QuestionToAnswer = tk.Label(admin, text="No more Questions to Answer!", bg="light blue",
+                                       font=("Arial bold", 20))
+           QuestionToAnswer.place(x=415, y=165)
+
+
+       howManyQuestions.destroy()
+       howManyQuestions = tk.Label(admin, text="You have " + str(len(studentQuestions)) + " question(s) to answer",
+                                   bg="light blue", fg="white", font=("Arial bold", 20))
+       howManyQuestions.place(x=395, y=95)
+
+
+   elif (len(studentQuestions) == 0):
+
+
+       # Placed so all the other error messages are hidden behind this canvas.
+       Canvas(admin, height=315, width=1250, bg="light blue", highlightthickness=0).place(x=-5, y=460)
+       tk.Label(admin, text = "No Questions to Delete", font = ("Arial bold", 15), fg = "red",
+                bg = "light blue").place(x = 514, y = 465)
+
+
+
+
+# If the students name is inappropriate, or the student is using information that is not theirs, the admin can delete their
+# information from the program and Excel sheet.
+# The admin must enter the exact information of the student in order to delete them off the list of students.
+def deleteStudentInformation():
+   global deleteStudentEmail, deleteStudentID, deleteStudentName, deleteStudentGrade
+   studentRemoved = False
+
+
+   # For all students, check if the information the admin gave matches a student.
+   for i in range(0, len(studentsInformation)):
+       if (studentsInformation[i].email == deleteStudentEmail.get() and str(
+               studentsInformation[i].ID == str(deleteStudentID.get())) and
+               studentsInformation[i].name == deleteStudentName.get() and str(studentsInformation[i].grade) == str(
+                   deleteStudentGrade.get())):
+
+
+           # Indicates a student is going to be removed, then it gathers all the student's information, adds them to the
+           # list of removed students, then deletes them off of the program.
+           studentRemoved = True
+           studentsInformation.pop(i)
+
+
+           # This opens the Excel sheet of all the student's information.
+           sheet = wb.active
+           wb_obj = openpyxl.load_workbook("studentsInfo.xlsx")
+           sheet_obj = wb_obj.active
+
+
+           # For all entries in the Excel sheet, if the students email matches an entry, then it deletes the entire row.
+           for i in range(1, sheet_obj.max_row + 1):
+               if (sheet_obj.cell(row=i, column=5).value == deleteStudentEmail.get()):
+                   sheet.delete_rows(i, 1)
+           wb.save(filename="studentsInfo.xlsx")
+
+
+           # This will add the deleted students information into an Excel sheet.
+           sheet = wb6.active
+           wb_obj = openpyxl.load_workbook("deletedStudents.xlsx")
+           sheet_obj = wb_obj.active
+           sheet.cell(row = sheet_obj.max_row + 1, column = 1).value = studentsInformation[i].name
+           sheet.cell(row = sheet_obj.max_row + 1, column = 2).value = studentsInformation[i].grade
+           sheet.cell(row = sheet_obj.max_row + 1, column = 3).value = studentsInformation[i].ID
+           sheet.cell(row = sheet_obj.max_row + 1, column = 4).value = studentsInformation[i].points
+           sheet.cell(row = sheet_obj.max_row + 1, column = 5).value = studentsInformation[i].email
+           sheet.cell(row = sheet_obj.max_row + 1, column = 6).value = currentQuarter
+           wb6.save(filename="deletedStudents.xlsx")
+
+
+           # Label saying the student was successfully removed.
+           tk.Label(admin, text="Student successfully removed.", font=("Arial bold", 15),
+                    bg="light blue").place(x=845, y=410)
+           break
+
+
+   # If the student was not removed, that means the admin entered incorrect information and the program could not delete the user.
+   if (studentRemoved == False):
+       # This label hides another label if it was placed, so the background would just be light blue
+       # and so there wouldn't be text on another text.
+       tk.Label(admin, text="Removed Students stored in the 'deletedStudents.xlsx' Excel file.", bg="light blue",
+                font=("Arial bold", 15), wraplength=400, fg = "light blue").place(x=838, y=410)
+
+
+       # This tells the admin that one of the entries they entered was incorrect.
+       tk.Label(admin, text="One of the entries are incorrect.", bg="light blue", fg="red",
+                font=("Arial bold", 15)).place(x=837, y=410)
+
+
+
+
+# This function shows a list of all the people that have been removed from the program by an admin.
+def removedStudentsList():
+   tk.Label(admin, text = "Removed Students stored in the 'deletedStudents.xlsx' Excel file.", bg = "light blue",
+            font = ("Arial bold", 15), wraplength = 400).place(x = 838, y = 410)
+
+
+# This function adds an event to the list of upcoming events at the school.
+# These upcoming events will be listed in a treeview that can be accessed by
+# pressing the upcoming events and leaderboard button on student view on the main screen.
+def confirmEvent():
+   global eventPlace, eventDate, eventChooser2, removeUpcomingEvent
+
+
+   # If the admin picked an event, the function continues.
+   if (eventChooser2.get() != ""):
+       # This collects all the information the admin inputted.
+       eventInfo = eventsUpcoming(eventPlace.get(), eventDate.get(), eventChooser2.get())
+       upcomingEventsList.append(eventInfo)
+
+
+       # It then deletes the information the admin put in the entries and Combobox and shows a success label.
+       eventPlace.delete(first=0, last=len(eventPlace.get()))
+       eventDate.delete(first=0, last=len(eventDate.get()))
+       eventChooser2.delete(first=0, last=len(eventChooser2.get()))
+
+
+       # This label makes it so the error label (if it was placed) is now the same color
+       # as the background.
+       tk.Label(admin, text="Choose an Event", font=("Arial bold", 15), fg="light blue",
+                bg="light blue").place(x=152, y=363)
+
+
+       # Success label
+       tk.Label(admin, text="Success", font=("Arial bold", 15), bg = "light blue").place(x=192, y=363)
+
+
+       # It then removes a Combobox listing all the upcoming events and updates it.
+       # This Combobox being there so the admin can see all the upcoming events and
+       # so the admin can remove certain events that have already happened, or remove
+       # cancelled events. More will be explained in the upcomingEventDeletion function.
+       removeUpcomingEvent.destroy()
+       removeUpcomingEvent = ttk.Combobox(admin, width=20, state='readonly')
+       UpcomingEventValues = []
+
+
+       # Appends all the upcoming events in the UpcomingEventValues list.
+       for j in range(0, len(upcomingEventsList)):
+           UpcomingEventValues.append(
+               upcomingEventsList[j].event + ' ' + upcomingEventsList[j].date + ' ' + upcomingEventsList[j].place)
+
+
+       # The values are then put into the Combobox placed, and the UpcomingEventValues list being cleared.
+       removeUpcomingEvent['values'] = UpcomingEventValues
+       removeUpcomingEvent.place(x=168, y=445)
+       UpcomingEventValues.clear()
+
+
+   elif (eventChooser2.get() == ""):
+       tk.Label(admin, text = "Choose an Event", font = ("Arial bold", 15), fg = "red",
+                bg = "light blue").place(x = 152, y = 363)
+
+
+
+
+# In this function, an admin can add a point or multiple points to the student they picked.
+# If a student did someone extraordinary or was deleted on accident by an admin, the admin can
+# add them back to the database by entering their information to attend an event, then the admin
+# can view the removed students list to see how many points to add to the student.
+# The admin inputs the students email, then inputs how many points to add to the student.
+def adminAddPoint():
+   global pointsToAdd, studentEmail, invalidEmailLabel
+   validEmail = False
+
+
+   # For every student in the database, if an email matches the inputted email, it runs the If statement.
+   for i in range(0, len(studentsInformation)):
+       if (studentEmail == studentsInformation[i].email):
+
+
+           # This means the email was valid, it then adds how many points the admin inputted in the entry.
+           validEmail = True
+           studentsInformation[i].points += int(pointsToAdd)
+
+
+           # This loads the "studentsInfo.xlsx" Excel sheet to update the information.
+           sheet = wb.active
+           wb_obj = openpyxl.load_workbook("studentsInfo.xlsx")
+           sheet_obj = wb_obj.active
+
+
+           # For all students in the Excel sheet, if the email matches the students email, then it
+           # adds how many points the admin gave the student to the students total points.
+           for i in range(1, sheet_obj.max_row + 1):
+               if (sheet_obj.cell(row=i, column=5).value == studentsInformation[i].email):
+                   sheet.cell(row=i, column=4).value += int(pointsToAdd)
+                   break
+           wb.save(filename="studentsInfo.xlsx")
+
+
+           # This will store the students information and the amount of points added into a "points added history"
+           sheet = wb5.active
+           wb_obj = openpyxl.load_workbook("pointsAddedHistory.xlsx")
+           sheet_obj = wb_obj.active
+           sheet.cell(row = sheet_obj.max_row + 1, column = 1).value = studentsInformation[i].name
+           sheet.cell(row = sheet_obj.max_row + 1, column = 2).value = studentsInformation[i].grade
+           sheet.cell(row = sheet_obj.max_row + 1, column = 3).value = studentsInformation[i].ID
+           sheet.cell(row = sheet_obj.max_row + 1, column = 4).value = studentsInformation[i].email
+           sheet.cell(row = sheet_obj.max_row + 1, column = 5).value = int(pointsToAdd)
+           sheet.cell(row = sheet_obj.max_row + 1, column = 6).value = currentQuarter
+           wb5.save(filename="pointsAddedHistory.xlsx")
+
+
+           # Success Label
+           tk.Label(admin, text="Success!", font=("Arial bold", 15), bg="light blue").place(x=192, y=410)
+           break
+
+
+   # If the email the admin inputted is not valid, then it says so.
+   if (validEmail == False):
+
+
+       # The first label is to just get rid of another label if it was placed.
+       # The second label just tells the admin that they entered an invalid email.
+       tk.Label(admin, text="Point History stored in the 'pointsAddedHistory.xlsx' Excel file.",
+                fg = "light blue", bg="light blue", font=("Arial bold", 15), wraplength=400).place(x=70, y=410)
+       tk.Label(admin, text="Invalid Email", font=("Arial bold", 15), bg="light blue", fg="red").place(x=175, y=410)
+
+
+# This function deletes an upcoming event if the event has already happened or the event has been cancelled.
+# The admin must select an upcoming event in order for anything to happen after the press the button to call this function.
+def upcomingEventDeletion():
+   global removeUpcomingEvent
+   UpcomingEventValues = []
+
+
+   # If the admin didn't pick an upcoming event to delete, then it says so.
+   if (removeUpcomingEvent.get() == ""):
+       tk.Label(admin, text="Select an Event", bg="light blue", fg="red", font=("Arial bold", 15)).place(x=162, y=530)
+
+
+   # Else, it runs this chunk of code.
+   elif (removeUpcomingEvent.get() != ""):
+
+
+       # For all upcoming events in the list, if the event matches what the admin chose, the code continues.
+       for i in range(0, len(upcomingEventsList)):
+           if (upcomingEventsList[i].event + ' ' + upcomingEventsList[i].date + ' ' + upcomingEventsList[
+               i].place == removeUpcomingEvent.get()):
+
+
+               # Adds the event into the list of past events and gets rid of the upcoming event the admin chose.
+               pastEventsList.append(upcomingEventsList[i])
+               upcomingEventsList.pop(i)
+
+
+               # It then updates the Combobox of upcoming events, in which the admin chose from.
+               removeUpcomingEvent.destroy()
+               removeUpcomingEvent = ttk.Combobox(admin, width=20, state='readonly')
+
+
+               # For all upcoming events, append them to the UpcomingEventValues list.
+               for j in range(0, len(upcomingEventsList)):
+                   UpcomingEventValues.append(
+                       upcomingEventsList[j].event + ' ' + upcomingEventsList[j].date + ' ' + upcomingEventsList[
+                           j].place)
+
+
+               # Then, take those values and add them to the values in the Combobox and place the Combobox.
+               removeUpcomingEvent['values'] = UpcomingEventValues
+               removeUpcomingEvent.place(x=168, y=445)
+
+
+               # Clears the events in the UpcomingEventValues list then places a success label.
+               UpcomingEventValues.clear()
+               tk.Label(admin, text="Success", bg="light blue", font=("Arial bold", 15)).place(x=193, y=530)
+               break
+
+
+       # Sets the value of the picked upcoming event to blank.
+       removeUpcomingEvent.set("")
+
+
+def destroyAllAdminWidgets():
+   global endofQuarterOptionsBool, eventOptionsBool, studentQuestionOptionsBool, studentInvolvedOptionsBool
+
+
+   if (endofQuarterOptionsBool == True):
+       global generateReportsLabel, winnersLabel, changeQuarterLabel, freshmanButton, sophomoreButton
+       global juniorButton, seniorButton, allGradesButton, reportSubmitButton, pickWinnerPoints, pickWinnerCorrespondingPoints
+       global pickWinnerRandom, quarterToShowLeaderboard, resetNewQuarter, quarterstoChoose, chooseQuarterLabel
+       # Label and canvas placed so the error messages are hidden.
+       tk.Label(admin, text="Please choose a Quarter.", fg="light blue", bg="light blue", font=("Arial bold", 15)).place(
+           x=493, y=175)
+       Canvas(admin, width = 1250, height = 400, highlightthickness=0, bg = "light blue").place(x = -5, y = 398)
+
+
+       pickWinnerCorrespondingPoints.destroy()
+       generateReportsLabel.destroy()
+       winnersLabel.destroy()
+       changeQuarterLabel.destroy()
+       freshmanButton.destroy()
+       chooseQuarterLabel.destroy()
+       sophomoreButton.destroy()
+       juniorButton.destroy()
+       seniorButton.destroy()
+       allGradesButton.destroy()
+       reportSubmitButton.destroy()
+       pickWinnerPoints.destroy()
+       pickWinnerRandom.destroy()
+       quarterToShowLeaderboard.destroy()
+       resetNewQuarter.destroy()
+       quarterstoChoose.destroy()
+   if (eventOptionsBool == True):
+       global removeUpcomingEvent, removeUpcomingEventButton, AddRemoveEventsLabel, timeLabel, eventDate
+       global placeLabel, eventPlace, eventConfirmer, eventChooser, eventCodeButton, confirmCode, eventChooser2
+       global resetCode, showEventsandCodes, deleteEventsLabel, deleteEvents_spinbox, deleteEvents_button
+       global viewPeopleInEventLabel, viewPeopleInEventSpinbox, viewPeopleInEventButton, ongoingEventLabel
+       global deleteEventNumberLabel2, deleteUpcomingEventsLabel, deleteEventNumberLabel
+
+
+       # Canvas and label so the error messages disappear when the admin switches from a screen to another.
+       tk.Label(admin, text="Choose an Event", font=("Arial bold", 15), fg="light blue",
+                bg="light blue").place(x=152, y=363)
+       tk.Label(admin, text="Choose a Number", fg="light blue",
+                bg="light blue", font=("Arial bold", 15)).place(x=534, y=255)
+       Canvas(admin, height = 315, width = 1350, bg = "light blue", highlightthickness=0).place(x = -5, y = 520)
+
+
+       deleteEventNumberLabel.destroy()
+       eventChooser2.destroy()
+       deleteEventNumberLabel2.destroy()
+       deleteUpcomingEventsLabel.destroy()
+       ongoingEventLabel.destroy()
+       removeUpcomingEvent.destroy()
+       removeUpcomingEventButton.destroy()
+       AddRemoveEventsLabel.destroy()
+       timeLabel.destroy()
+       eventDate.destroy()
+       placeLabel.destroy()
+       eventPlace.destroy()
+       eventConfirmer.destroy()
+       eventChooser.destroy()
+       eventCodeButton.destroy()
+       confirmCode.destroy()
+       resetCode.destroy()
+       showEventsandCodes.destroy()
+       deleteEventsLabel.destroy()
+       deleteEvents_spinbox.destroy()
+       deleteEvents_button.destroy()
+       viewPeopleInEventButton.destroy()
+       viewPeopleInEventSpinbox.destroy()
+       viewPeopleInEventLabel.destroy()
+   if (studentQuestionOptionsBool == True):
+       global howManyQuestions, QuestionToAnswer, answer_entry, answerQuestion_button, deleteQuestionButton
+
+
+       # Light blue canvas screen added so the error messages disappear behind the canvas
+       Canvas(admin, height = 315, width = 1250, bg = "light blue", highlightthickness = 0).place(x = -5, y = 460)
+       howManyQuestions.destroy()
+       QuestionToAnswer.destroy()
+       answer_entry.destroy()
+       answerQuestion_button.destroy()
+       deleteQuestionButton.destroy()
+   if (studentInvolvedOptionsBool == True):
+       global deleteStudentInstruction, deleteStudentName, deleteStudentGrade, deleteStudentID, deleteStudentEmail
+       global deleteStudentButton, viewRemovedStudents, pointsToAdd, pointButton, studentEmail, firstLastLabel
+       global gradeLabel, studentIDLabel, emailLabel, pointLabel, studentEmailLabel, pointsToAddLabel, pointHistoryButton
+       # Light blue canvas screen added so the error messages disappear behind the canvas.
+       Canvas(admin, height=390, width=1250, bg="light blue", highlightthickness=0).place(x = -5, y = 405)
+
+
+       pointHistoryButton.destroy()
+       deleteStudentInstruction.destroy()
+       deleteStudentName.destroy()
+       deleteStudentGrade.destroy()
+       deleteStudentID.destroy()
+       deleteStudentEmail.destroy()
+       deleteStudentButton.destroy()
+       viewRemovedStudents.destroy()
+       pointsToAdd.destroy()
+       pointButton.destroy()
+       studentEmail.destroy()
+       firstLastLabel.destroy()
+       gradeLabel.destroy()
+       studentIDLabel.destroy()
+       emailLabel.destroy()
+       pointLabel.destroy()
+       studentEmailLabel.destroy()
+       pointsToAddLabel.destroy()
+
+
+def endofQuarterOptions():
+   global generateReportsLabel, winnersLabel, changeQuarterLabel, freshmanButton, sophomoreButton
+   global juniorButton, seniorButton, allGradesButton, reportSubmitButton, pickWinnerPoints, chooseQuarterLabel
+   global pickWinnerRandom, quarterToShowLeaderboard, resetNewQuarter, quarterstoChoose, report_var, admin
+   global endofQuarterOptionsBool, eventOptionsBool, studentQuestionOptionsBool, studentInvolvedOptionsBool
+   global pickWinnerCorrespondingPoints
+
+
+   admin.minsize(1240, 475)
+   admin.maxsize(1240, 475)
+
+
+   destroyAllAdminWidgets()
+   # Indicates that the admin picked this option and sets it true and sets all the others false.
+   studentInvolvedOptionsBool = False
+   eventOptionsBool = False
+   studentQuestionOptionsBool = False
+   endofQuarterOptionsBool = True
+
+
+   # Labels for generating reports, picking winners and changing quarters.
+   generateReportsLabel = tk.Label(admin, text="Generate Reports", fg = "white", font=("Arial bold", 20), bg="light blue")
+   generateReportsLabel.place(x=135, y = 95)
+
+
+   winnersLabel = tk.Label(admin, text="Pick Winners", fg = "white",font=("Arial bold", 20), bg="light blue")
+   winnersLabel.place(x=900, y = 95)
+
+
+   changeQuarterLabel = tk.Label(admin, text="Change Quarter", fg = "white", font=("Arial bold", 20), bg="light blue")
+   changeQuarterLabel.place(x=510,y=250)
+
+
+   # Label telling the admin where to choose the quarters
+   chooseQuarterLabel = tk.Label(admin, text = "Choose a Quarter", fg = "white", font = ("Arial bold", 20), bg = "light blue")
+   chooseQuarterLabel.place(x=500, y = 95)
+
+
+   # The following Radiobutton allow the admin to pick what grade they want a report from, or if they want to
+   # view a report from all the grades.
+   # The admin accesses these reports by clicking the reportSubmitButton which generates the report in Excel.
+   # More details described in the listofInformation function.
+   report_var = tk.StringVar(admin)
+
+
+   freshmanButton = tk.Radiobutton(admin, text="Freshman Report", variable=report_var, value=9, bg="light blue",
+                                   font=("Arial bold", 15))
+   freshmanButton.place(x=147, y=135)
+
+
+   sophomoreButton = tk.Radiobutton(admin, text="Sophomore Report", variable=report_var, value=10, bg="light blue",
+                                    font=("Arial bold", 15))
+   sophomoreButton.place(x=147, y=178)
+
+
+   juniorButton = tk.Radiobutton(admin, text="Junior Report", variable=report_var, value=11, bg="light blue",
+                                 font=("Arial bold", 15))
+   juniorButton.place(x=147, y=221)
+
+
+   seniorButton = tk.Radiobutton(admin, text="Senior Report", variable=report_var, value=12, bg="light blue",
+                                 font=("Arial bold", 15))
+   seniorButton.place(x=147, y=264)
+
+
+   allGradesButton = tk.Radiobutton(admin, text="All Grades Report", variable=report_var, value=13,
+                                    bg="light blue", font=("Arial bold", 15))
+   allGradesButton.place(x=147, y=307)
+
+
+   reportSubmitButton = tk.Button(admin, text="Generate Report", command=listofInformation, bg="#BDB3FF",
+                                  font=("Arial bold", 15), width = 18)
+   reportSubmitButton.place(x = 135, y = 350)
+
+
+   # These buttons allow the admin to pick the winner for the most points in each grade and also allows the admin
+   # to pick a winner from each grade randomly.
+   pickWinnerPoints = tk.Button(admin, text="Pick Winners for most points", command=prizePickerPoints, bg="#BDB3FF",
+                                font=("Arial bold", 15), width = 23, height = 2)
+   pickWinnerPoints.place(x=846, y=143)
+
+
+   pickWinnerRandom = tk.Button(admin, text="Pick Winners Randomized", command=prizePickerRandomized, bg="#BDB3FF",
+                                font=("Arial bold", 15), width = 23, height = 2)
+   pickWinnerRandom.place(x=846, y=235)
+
+
+   pickWinnerCorrespondingPoints = tk.Button(admin, text = "Pick Winners with more \n than 5 or 10 points",
+                                             command = prizePickerCorrespondingPoints, bg = "#BDB3FF",
+                                             font = ("Arial bold", 15), width = 23, height = 2)
+   pickWinnerCorrespondingPoints.place(x = 846, y = 327)
+   # This button allows the admin to change the quarter displayed at the bottom of the leaderboard,
+   # If the admin didn't select a quarter from above, then the function tells the admin.
+   quarterToShowLeaderboard = tk.Button(admin, text="Leaderboard Quarter", font=("Arial bold", 15),
+                                        bg="#BDB3FF", command=changeCurrentQuarter, width = 18)
+   quarterToShowLeaderboard.place(x=504, y=295)
+
+
+   # At the end of every quarter, all the students points are wiped, starting brand new.
+   # When this button is clicked, all the students points are reset.
+   resetNewQuarter = tk.Button(admin, text="New Quarter", bg="#BDB3FF", command=resetInformation, fg="red",
+                               font=("Arial bold", 15), width = 18)
+   resetNewQuarter.place(x=504, y=350)
+
+
+   # This Combobox is used to store all the quarters in the school year.
+   quarterstoChoose = ttk.Combobox(admin, width=20, state='readonly')
+   quarterstoChoose['values'] = ("Quarter 1", "Quarter 2", "Quarter 3", "Quarter 4")
+   quarterstoChoose.place(x=545, y=145)
+
+
+def eventOptions():
+   global removeUpcomingEvent, removeUpcomingEventButton, AddRemoveEventsLabel, timeLabel, eventDate
+   global placeLabel, eventPlace, eventConfirmer, eventChooser, eventCodeButton, confirmCode, eventChooser2
+   global resetCode, showEventsandCodes, deleteEventsLabel, deleteEvents_spinbox, deleteEvents_button
+   global viewPeopleInEventLabel, viewPeopleInEventSpinbox, viewPeopleInEventButton, ongoingEventLabel
+   global eventOptionsBool, studentInvolvedOptionsBool, studentQuestionOptionsBool, endofQuarterOptionsBool
+   global deleteEventNumberLabel2, deleteUpcomingEventsLabel, deleteEventNumberLabel, admin
+
+
+   admin.minsize(1240, 600)
+   admin.maxsize(1240, 600)
+
+
+   destroyAllAdminWidgets()
+   # Indicates that the admin picked this option and sets it true and sets all the others false.
+   studentInvolvedOptionsBool = False
+   eventOptionsBool = True
+   studentQuestionOptionsBool = False
+   endofQuarterOptionsBool = False
+
+
+   # Label displaying this is the part of the program to remove upcoming events.
+   deleteUpcomingEventsLabel = tk.Label(admin, text = "Delete Upcoming Events", font = ("Arial bold", 20),
+                                        bg = "light blue", fg = "white")
+   deleteUpcomingEventsLabel.place(x = 73, y = 395)
+   # This Combobox displays all the upcoming events, in which the admin can choose from to remove if the
+   # event had already passed, or if the event was cancelled.
+   removeUpcomingEvent = ttk.Combobox(admin, width=20, state='readonly')
+
+
+   # The following code appends all the upcoming events in the UpcomingEventValues.
+   UpcomingEventValues = []
+   for i in range(0, len(upcomingEventsList)):
+       # This just appends the event, date, and place of the upcoming events with a space in between.
+       UpcomingEventValues.append(
+           upcomingEventsList[i].event + ' ' + upcomingEventsList[i].date + ' ' + upcomingEventsList[i].place)
+
+
+   # These values are then added to the combobox, then the combobox being placed.
+   removeUpcomingEvent['values'] = UpcomingEventValues
+   removeUpcomingEvent.place(x=168, y=445)
+
+
+   # This button when clicked runs the upcomingEventDeletion function which deletes the event the admin chose,
+   # if they chose one. If they didn't then the function will tell the admin.
+   removeUpcomingEventButton = tk.Button(admin, text="Remove", bg="#BDB3FF", font=("Arial bold", 15),
+                                         command=upcomingEventDeletion, width = 11)
+   removeUpcomingEventButton.place(x=168, y=477)
+
+
+   # This tells the admin that this part of the admin panel is used for appending upcoming events,
+   # as well as how to format the time the event is held at, and the entry to put this information in.
+   # This part also uses the eventChooser Combobox in order to pick what event is being held.
+   AddRemoveEventsLabel = tk.Label(admin, text="Add Upcoming Events",
+                                   bg="light blue", font=("Arial bold", 20), fg = "white")
+   AddRemoveEventsLabel.place(x=90,y=95)
+
+
+   timeLabel = tk.Label(admin, text="MM/DD/YYYY TIME", font=("Arial bold", 15), bg="light blue")
+   timeLabel.place(x=144,y=180)
+
+
+   eventDate = tk.Entry(admin, font=("Arial", 12))
+   eventDate.place(x=144, y=210)
+
+
+   # This label tells the admin to put where the event is being held at.
+   placeLabel = tk.Label(admin, text="Place", font=("Arial bold", 15), bg="light blue")
+   placeLabel.place(x=144,y=240)
+
+
+   eventPlace = tk.Entry(admin, font=("Arial", 12))
+   eventPlace.place(x=144, y=270)
+
+
+   # This button confirms the upcoming event, which runs the confirmEvent function.
+   # The upcoming event is then visible for all the students to see when they click
+   # the events and leaderboard button on the main screen.
+   eventConfirmer = tk.Button(admin, text="Confirm Upcoming Event", bg="#BDB3FF", font=("Arial bold", 15),
+                              command=confirmEvent)
+   eventConfirmer.place(x=108, y=310)
+
+
+   # Label displaying that this part of the admin menu is for creating ongoing events.
+   ongoingEventLabel = tk.Label(admin, text = "Create Ongoing Event", font = ("Arial bold", 20), bg = "light blue",
+                                fg = "white")
+   ongoingEventLabel.place(x = 850, y = 95)
+
+
+   # This code creates the Combobox full of all the current events hosted by the school.
+   # Used for ongoing events.
+   eventChooser = ttk.Combobox(admin, width=20, state='readonly')
+   eventChooser['values'] = ("Basketball Game", "Football Game", "Soccer Game", "Volleyball Game", "Hockey Game",
+                             "Fun Run", "Movie Night", "Opening Ceremony", "eSports Tournament", "Talent Show")
+   eventChooser.place(x=922, y=145)
+
+
+   # This code creates the Combobox full of all the current events hosted by the school.
+   # Used for upcoming events.
+   eventChooser2 = ttk.Combobox(admin, width=20, state='readonly')
+   eventChooser2['values'] = ("Basketball Game", "Football Game", "Soccer Game", "Volleyball Game", "Hockey Game",
+                             "Fun Run", "Movie Night", "Opening Ceremony", "eSports Tournament", "Talent Show")
+   eventChooser2.place(x=168, y=145)
+
+
+   # This button when pressed runs the randomCodeChooser function which generates a random code for the event.
+   # The admin chooses an event to run, then clicks this button to generate a code.
+   eventCodeButton = tk.Button(admin, text="Generate Event Code", command=randomCodeChooser, bg="#BDB3FF",
+                               font=("Arial bold", 15), width = 20, height = 2)
+   eventCodeButton.place(x=870, y=180)
+
+
+   # Once the admin has picked an event and generated a random code, the button will run the codeConfirmer function
+   # which just validates all the information.
+   # More details in the codeConfirmer function.
+   confirmCode = tk.Button(admin, text="Confirm Event and Code", command=codeConfirmer, bg="#BDB3FF",
+                           font=("Arial bold", 15), width = 20, height = 2)
+   confirmCode.place(x=870, y=271)
+
+
+   # This button resets the code, if the code for some reason is too easy to guess or the admin just doesn't want
+   # to append an ongoing event anymore, then the admin can just click this button.
+   resetCode = tk.Button(admin, text="Reset Code", command=resetCodeFunc, bg="#BDB3FF", font=("Arial bold", 15),
+                         width = 20, height = 2)
+   resetCode.place(x=870, y=362)
+
+
+   # This button when clicked runs the showRunningEvents function which shows all the ongoing events.
+   # More details in the showRunningEvents function.
+   showEventsandCodes = tk.Button(admin, text="Show Events and Codes", command=showRunningEvents, bg="#BDB3FF",
+                                  font=("Arial bold", 15), width = 20, height = 2)
+   showEventsandCodes.place(x=870, y=453)
+
+
+   # This label tells the admin to enter an event number to delete that event and code.
+   # The admin accesses this number by clicking the button just described above.
+
+
+   deleteEventsLabel = tk.Label(admin, text="Delete Ongoing Event", font=("Arial bold", 20),
+                                 bg="light blue", fg = "white")
+   deleteEventsLabel.place(x=474, y=95)
+
+
+   deleteEventNumberLabel = tk.Label(admin, text = "Event Number", font = ("Arial bold", 15), bg = "light blue")
+   deleteEventNumberLabel.place(x = 550, y = 140)
+
+
+   # The admin then enters the event number into this spinbox, then clicks the button below which runs the
+   # delEventandCode function to delete the event and code.
+   if (len(validCodes) != 0):
+       deleteEvents_spinbox = Spinbox(admin, from_= 1, to = len(validCodes), width = 14,
+                                      font = ("Arial bold", 12), state = 'readonly', wrap = True)
+   else:
+       deleteEvents_spinbox = Spinbox(admin, from_=1, to=len(validCodes), width=14,
+                                      font=("Arial bold", 12), state='disabled', wrap=True)
+   deleteEvents_spinbox.place(x=550, y=170)
+
+
+   deleteEvents_button = tk.Button(admin, text="Confirm", command=delEventandCode, bg="#BDB3FF",
+                                   font=("Arial bold", 15), width = 11)
+   deleteEvents_button.place(x=550, y=205)
+
+
+   # These spin-boxes and buttons allow the admin to view the people that attended the specific event the admin chose.
+   # The admin enters the number the event is assigned into the entry like how you delete an event, then the admin
+   # clicks the viewPeopleInEventButton and the report is generated in the attendees.xlsx Excel sheet.
+   viewPeopleInEventLabel = tk.Label(admin, text="View Attendees",
+                                     font=("Arial bold", 20), bg="light blue", fg= 'white')
+   viewPeopleInEventLabel.place(x=519, y=362)
+
+
+   deleteEventNumberLabel2 = tk.Label(admin, text = "Event Number", font = ("Arial bold", 15), bg = "light blue")
+   deleteEventNumberLabel2.place(x = 552, y = 407)
+
+
+   if (len(validCodes) != 0):
+       viewPeopleInEventSpinbox = Spinbox(admin, from_= 1, to = len(validCodes), width = 14,
+                                      font = ("Arial bold", 12), state = 'readonly', wrap = True)
+   else:
+       viewPeopleInEventSpinbox = Spinbox(admin, from_=1, to=len(validCodes), width=14,
+               font=("Arial bold", 12), state='disabled', wrap=True)
+   viewPeopleInEventSpinbox.place(x=552, y = 437)
+
+
+   viewPeopleInEventButton = tk.Button(admin, text="Confirm", command=viewAttendees, bg="#BDB3FF",
+                                       font=("Arial bold", 15), width = 11)
+   viewPeopleInEventButton.place(x=552, y=477)
+
+
+def studentQuestionOptions():
+   global howManyQuestions, QuestionToAnswer, answer_entry, answerQuestion_button, deleteQuestionButton, admin
+   global studentInvolvedOptionsBool, eventOptionsBool, studentQuestionOptionsBool, endofQuarterOptionsBool
+
+
+   admin.minsize(1240, 525)
+   admin.maxsize(1240, 525)
+
+
+   destroyAllAdminWidgets()
+   # Indicates that the admin picked this option and sets it true and sets all the others false.
+   studentInvolvedOptionsBool = False
+   eventOptionsBool = False
+   studentQuestionOptionsBool = True
+   endofQuarterOptionsBool = False
+
+
+   # This label tells the admin how many questions that are left to answer.
+   howManyQuestions = tk.Label(admin, text="You have " + str(len(studentQuestions)) + " question(s) to answer.",
+                               bg="light blue", font=("Arial bold", 20), fg = "white")
+   howManyQuestions.place(x=395, y=95)
+
+
+   # If there aren't 0 questions, that means there are still questions to answer and so the code
+   # displays the question that was asked the earliest.
+   if (len(studentQuestions) != 0):
+       QuestionToAnswer = tk.Label(admin, text=studentQuestions[0], bg="light blue", wraplength=500,
+                                   font=("Arial bold", 15))
+       QuestionToAnswer.place(x=372, y=140)
+
+
+   # Else if there are 0 questions, then it displays that there are no more questions left to answer.
+   else:
+       QuestionToAnswer = tk.Label(admin, text="No more Questions to Answer!", bg="light blue",
+                                   font=("Arial bold", 20))
+       QuestionToAnswer.place(x=415, y=165)
+
+
+   # This entry is where the admin puts their answer to the question displayed above.
+   # This entry will not work if there are no questions left to answer.
+   answer_entry = tk.Entry(admin, width=45, font = ("Arial bold", 15))
+   answer_entry.place(x=376, y=250)
+
+
+   # This button submits the admins answer, with more details described in the answerQuestionFunc.
+   answerQuestion_button = tk.Button(admin, text="Submit Answer", command=answerQuestionFunc, bg="#BDB3FF",
+                                     font=("Arial bold", 15), width = 41, height = 2)
+   answerQuestion_button.place(x=375, y=300)
+
+
+   # This button deletes the asked questions if it is inappropriate, or if it isn't even a question.
+   deleteQuestionButton = tk.Button(admin, text="Delete Question", command=delQuestion, bg="#BDB3FF",
+                                    font=("Arial bold", 15), width = 41, height = 2)
+   deleteQuestionButton.place(x=375, y=380)
+
+
+
+
+def studentInvolvedOptions():
+   global deleteStudentInstruction, deleteStudentName, deleteStudentGrade, deleteStudentID, deleteStudentEmail
+   global deleteStudentButton, viewRemovedStudents, pointsToAdd, pointButton, studentEmail, firstLastLabel, admin
+   global gradeLabel, studentIDLabel, emailLabel, pointLabel, studentEmailLabel, pointsToAddLabel, pointHistoryButton
+   global studentInvolvedOptionsBool, eventOptionsBool, studentQuestionOptionsBool, endofQuarterOptionsBool
+
+
+   admin.minsize(1240, 500)
+   admin.maxsize(1240, 500)
+   destroyAllAdminWidgets()
+
+
+   # Indicates that the admin picked this option and sets it true and sets all the others false.
+   studentInvolvedOptionsBool = True
+   eventOptionsBool = False
+   studentQuestionOptionsBool = False
+   endofQuarterOptionsBool = False
+
+
+   # This label tells the admin that this is the part of the program,
+   # so they can remove students from the database or list
+   deleteStudentInstruction = tk.Label(admin,
+                                       text="Remove Student from List",
+                                       font=("Arial bold", 20),
+                                       bg="light blue", fg = "white")
+   deleteStudentInstruction.place(x=817, y=95)
+
+
+   # This label tells the admin that they should put the students first and last name in the entry below it.
+   firstLastLabel = tk.Label(admin, text="First and Last Name", font=("Arial bold", 15),
+            bg="light blue")
+   firstLastLabel.place(x = 800, y = 135)
+
+
+   deleteStudentName = tk.Entry(admin, font=("Arial", 12))
+   deleteStudentName.place(x=1000, y=140)
+
+
+   # This label tells the admin that they should put the students grade in the entry below it.
+   gradeLabel = tk.Label(admin, text="Grade", font=("Arial bold", 15), bg="light blue")
+   gradeLabel.place(x = 932, y = 175)
+
+
+   deleteStudentGrade = tk.Entry(admin, font=("Arial", 12))
+   deleteStudentGrade.place(x=1000, y=180)
+
+
+   # This label tells the admin that they should put the students ID in the entry below it.
+   studentIDLabel = tk.Label(admin, text="Student ID", font=("Arial bold", 15), bg="light blue")
+   studentIDLabel.place(x = 890, y = 215)
+
+
+   deleteStudentID = tk.Entry(admin, font=("Arial", 12))
+   deleteStudentID.place(x=1000, y=220)
+
+
+   # This label tells the admin that they should put the students email in the entry below it.
+   emailLabel = tk.Label(admin, text="Email", font=("Arial bold", 15), bg="light blue")
+   emailLabel.place(x=936, y=255)
+
+
+   deleteStudentEmail = tk.Entry(admin, font=("Arial", 12))
+   deleteStudentEmail.place(x=1000, y=260)
+
+
+   # This is the button the admin presses after they are done filling out all the students information
+   # The button then runs the deleteStudentInformation function, more details described in that function.
+   deleteStudentButton = tk.Button(admin, bg="#BDB3FF", text="Remove Student", command=deleteStudentInformation,
+                                   font=("Arial bold", 15), width = 31)
+   deleteStudentButton.place(x=802, y=300)
+
+
+   # This button runs the removedStudentsList which shows a list of all the removed students.
+   # More details described in that function.
+   viewRemovedStudents = tk.Button(admin, text="View Removed Students", font=("Arial bold", 15), bg="#BDB3FF",
+                                   command=removedStudentsList, width = 31)
+   viewRemovedStudents.place(x=802, y=355)
+
+
+   # This label tells the admin that this part of the admin panel is used to add point(s) to students.
+   pointLabel = tk.Label(admin, text="Add Point(s) to Student", font=("Arial bold", 20), bg="light blue", fg = "white")
+   pointLabel.place(x = 87, y = 95)
+
+
+   # This tells the admin to enter the students email in the entry below.
+   studentEmailLabel = tk.Label(admin, text="Student's Email", bg="light blue", font=("Arial bold", 15))
+   studentEmailLabel.place(x=97,y=145)
+
+
+   studentEmail = tk.Entry(admin, font=("Arial", 12), width = 31)
+   studentEmail.place(x=97, y=175)
+
+
+   # This tells the admin to enter the amount of points to give to the student in the spinbox below.
+   # If the admin enters a letter, then it will not add any points to the student.
+   pointsToAddLabel = tk.Label(admin, text="Point(s) To Add", bg="light blue", font=("Arial bold", 15))
+   pointsToAddLabel.place(x=97,y=215)
+
+
+   pointsToAdd = Spinbox(admin, from_= 0, to = 5, wrap=True, width = 15, font = ("Arial", 12), state='readonly')
+   pointsToAdd.place(x = 97, y = 245)
+
+
+   # This button is used for when the admin is done entering all the information, which runs the adminAddPoint function,
+   # with more details described in that function
+   pointButton = tk.Button(admin, font=("Arial bold", 15), bg="#BDB3FF", command=adminAddPoint, text="Confirm", width = 23)
+   pointButton.place(x=97, y=300)
+
+
+   pointHistoryButton = tk.Button(admin, font = ("Arial bold", 15), bg = "#BDB3FF", command = pointHistory,
+                                  text = "View Point History", width = 23)
+   pointHistoryButton.place(x = 97, y = 355)
+
+
+def pointHistory():
+   tk.Label(admin, text = "Point History stored in the 'pointsAddedHistory.xlsx' Excel file.",
+                   bg = "light blue", font = ("Arial bold", 15), wraplength = 400).place(x=70, y = 410)
+
+
+# This function creates the admin screen that includes many functions, like having the ability to generate reports
+# for the quarter, picking winners for prizes, changing the quarter, appending upcoming events, adding points to students.
+# removing students, generating ongoing events, answering questions and more.
+def adminAccessor():
+   global admin, screenAdmin
+
+
+   # This creates the admin screen and configures it.
+   admin = tk.Tk()
+   admin.geometry("1240x88")
+   screenAdmin = Canvas(admin, height=900, width=1250, bg="light blue")
+   screenAdmin.place(x=-5, y=-5)
+   screenAdmin.create_line(0, 89, 1250, 89, width = 1)
+   screenAdmin.create_rectangle(0, 0, 1250, 88, fill = "#6DE4E0")
+   admin.minsize(1240, 86)
+   admin.maxsize(1240, 86)
+
+
+   # Admin menu label
+   tk.Label(admin, text = "Admin Menu", font = ("Arial bold", 30), bg = "#6DE4E0").place(x = 500, y = 15)
+
+
+   # Button that directs you to the screen so the admin can generate reports, pick winners and change quarters.
+   tk.Button(admin, text = "Generate Reports, Pick Winners, Change Quarters", bg = "#BDB3FF", width = 40,
+             font = ("Arial bold", 15), command = endofQuarterOptions, fg = "white").place(x = 0, y = 0)
+
+
+   # Button that directs you to the screen so the admin can view all the event options.
+   tk.Button(admin, text = "Event Options", bg = "#BDB3FF", command = eventOptions,
+             font = ("Arial bold", 15), width = 40, fg = "white").place(x = 0, y = 42)
+
+
+   # Button that directs you to the screen so the admin can answer student asked questions.
+   tk.Button(admin, text = "Student Questions", font = ("Arial bold", 15), width = 40,
+             bg = "#BDB3FF", command = studentQuestionOptions, fg = "white").place(x = 750, y = 0)
+
+
+   # Button that directs you to the screen so the admin can remove students
+   tk.Button(admin, text = "Remove or Add Point(s) to Students", font = ("Arial bold", 15), width = 40,
+             bg = "#BDB3FF", command = studentInvolvedOptions, fg = "white").place(x = 750, y = 42)
+
+
+# This changes the current quarter on the screen with the leaderboard and past and upcoming events,
+# at the bottom of the leaderboard, there will be a large text in which it displays the current quarter
+# picked or changed by the admin.
+def changeCurrentQuarter():
+   global quarterstoChoose, currentQuarter
+
+
+   # Changes the quarter if the admin picked a quarter out of the Combobox
+   if (quarterstoChoose.get() != ""):
+       currentQuarter = quarterstoChoose.get()
+       # This label will make the error message disappear.
+       tk.Label(admin, text="Please choose a Quarter.", fg="light blue", bg="light blue", font=("Arial bold", 15)).place(
+           x=493, y=175)
+       tk.Label(admin, text="Successfully changed", font=("Arial bold", 15), bg="light blue").place(x=512, y=400)
+
+
+   # Else if the admin didn't choose a quarter, then it tells the admin.
+   elif (quarterstoChoose.get() == ""):
+       tk.Label(admin, text="Please choose a Quarter.", fg="red", bg="light blue", font=("Arial bold", 15)).place(
+           x=493, y=175)
+
+
+
+
+# This function is activated by a button in the admin screen in which it resets all the students points for the quarter.
+# The admin only should click this button if the quarter has ended, and when this function runs, it asks you if you are sure.
+def resetInformation():
+   # Asks the admin if they are sure they want to continue and delete all the students' information.
+   if (messagebox.askquestion("askquestion",
+                              "Are you sure? THIS WILL DELETE ALL THE STUDENTS POINTS FROM THIS QUARTER")):
+
+
+       # Clears the list of removed students from the quarter, since all points are reset.
+       removedStudents.clear()
+
+
+       # Sets all the students points to 0.
+       for i in range(0, len(studentsInformation)):
+           studentsInformation[i].points = 0
+
+
+       # On the Excel sheet, it sets everyone's points to 0.
+       sheet = wb.active
+       wb_obj = openpyxl.load_workbook("studentsInfo.xlsx")
+       sheet_obj = wb_obj.active
+       for i in range(1, sheet_obj.max_row):
+           sheet.cell(row=i, column=4).value = 0
+       wb.save(filename="studentsInfo.xlsx")
+
+
+       # Success Label
+       tk.Label(admin, text="SUCCESS", bg="light blue", font=("Arial bold", 15)).place(x=566, y=400)
+
+
+   # Else if the admin clicked no, then the function will not continue and displays a cancelled text.
+   else:
+       tk.Label(admin, text="CANCELLED", bg="light blue", font=("Arial bold", 15), fg = "red").place(x=553, y=400)
+
+
+
+
+# This function has multiple purposes, the first purpose is to add the information of prize winners to an Excel sheet
+# which is named "studentsWithPrizes.xlsx", the second purpose is to display the student reports at the end of the quarter
+# in an Excel sheet called "studentReport.xlsx".
+def listofInformation(Type="Not Prize Picker", winningStudents=[], Type2="Not Prize Picker"):
+   global admin, report_var, report, quarterstoChoose
+
+
+   # The admin must choose a quarter before the function continues.
+   if (quarterstoChoose.get() != ""):
+       # This will make the error message disappear if it was placed.
+       tk.Label(admin, text="Please choose a Quarter.", fg="light blue", bg="light blue", font=("Arial bold", 15)).place(
+           x=493, y=175)
+
+
+       # If the admin is picking a prize, it runs this code.
+       if (Type == "Prize Picker"):
+
+
+           # Excel sheet set up.
+           sheet = wb4.active
+           wb_obj = openpyxl.load_workbook("studentsWithPrizes.xlsx")
+           sheet_obj = wb_obj.active
+
+
+           # For all chosen students to win a prize, add their information to the Excel sheet.
+           # Includes their name, grade, ID, amount of points, email and the quarter they won it in.
+           for i in range(0, len(winningStudents)):
+               sheet.cell(row=sheet_obj.max_row + 1, column=1).value = winningStudents[i].name
+               sheet.cell(row=sheet_obj.max_row + 1, column=2).value = winningStudents[i].grade
+               sheet.cell(row=sheet_obj.max_row + 1, column=3).value = winningStudents[i].ID
+               sheet.cell(row=sheet_obj.max_row + 1, column=4).value = winningStudents[i].points
+               sheet.cell(row=sheet_obj.max_row + 1, column=5).value = winningStudents[i].email
+               sheet.cell(row=sheet_obj.max_row + 1, column=6).value = quarterstoChoose.get()
+               randomNumber = random.randint(0, len(prizes) - 1)
+
+
+               # If the student had the most points out of their grade, then they win the grand prize.
+               # which is the terry the twolf stuffed animal (the mascot)
+               if (Type2 == "Most Points"):
+                   sendMail(winningStudents[i].email, winningStudents[i].name, "Most Points", "Terry the T-Wolf Stuffed Aninal")
+                   sheet.cell(row=sheet_obj.max_row + 1, column=7).value = "Terry the T-Wolf Stuffed Animal"
+                   sheet.cell(row=sheet_obj.max_row + 1, column=8).value = "Most Points"
+
+
+               # Else if the student was randomly selected, then the prize is randomly chosen.
+               elif (Type2 == "Random"):
+                   sendMail(winningStudents[i].email, winningStudents[i].name, "Random Winner", prizes[randomNumber])
+                   sheet.cell(row=sheet_obj.max_row + 1, column=7).value = prizes[randomNumber]
+                   sheet.cell(row=sheet_obj.max_row + 1, column=8).value = "Randomly Chosen"
+
+
+               elif (Type2 == "Guaranteed"):
+                   sendMail(winningStudents[i].email, winningStudents[i].name, "Guaranteed", prizes[randomNumber])
+                   sheet.cell(row=sheet_obj.max_row + 1, column = 7).value = prizes[randomNumber]
+                   sheet.cell(row=sheet_obj.max_row + 1, column=8).value = "Guaranteed Winner"
+
+
+           # Saves the worksheet and tells the admin what sheet the information was stored in.
+           wb4.save("studentsWithPrizes.xlsx")
+           tk.Label(admin, text="Winners stored in the 'studentsWithPrizes.xlsx' Excel file.", font=("Arial bold", 15),
+                    bg="light blue", wraplength=400).place(x=821, y=400)
+
+
+       # report_var is the grade the admin chose to generate the report for, ranging from 9-13.
+       # If the admin chooses 13, then it will generate a report for all the students.
+       # If the admin did choose a grade and the Type isn't Prize Picker, it means that
+       # the admin chose to generate a report, and it will run this code.
+       elif (report_var.get() != "" and Type != "Prize Picker"):
+
+
+           # Sheet set up, and also sorting the list of students from greatest to lowest points.
+           sheet = wb3.active
+           studentsInformation.sort(key=lambda x: x.points, reverse=True)
+           studentsToAdd = []
+
+
+           # If the grade doesn't equal 13, then it will append the grade level the admin chose
+           # to the list of studentsToAdd.
+           if (report_var.get() != 13):
+               for i in range(0, len(studentsInformation)):
+                   if (str(studentsInformation[i].grade) == report_var.get()):
+                       studentsToAdd.append(studentsInformation[i])
+
+
+           # Else if the grade does equal 13, then it adds all the students in the list of studentsToAdd.
+           elif (report_var.get() == 13):
+               for i in range(0, len(studentsInformation)):
+                   studentsToAdd.append(studentsInformation[i])
+
+
+           # For all students in studentsToAdd, add their information to the report.
+           for i in range(2, len(studentsToAdd) + 2):
+               sheet.cell(row=i, column=1).value = studentsToAdd[i - 2].name
+               sheet.cell(row=i, column=2).value = studentsToAdd[i - 2].grade
+               sheet.cell(row=i, column=3).value = studentsToAdd[i - 2].ID
+               sheet.cell(row=i, column=4).value = studentsToAdd[i - 2].points
+               sheet.cell(row=i, column=5).value = studentsToAdd[i - 2].email
+
+
+           # Adds the quarter and total students at the top of the sheet, then clears the list of studentsToAdd,
+           # then saves the file under "studentReport.xlsx" then tells the admin what sheet the information was stored in.
+           sheet.cell(row=1, column=8).value = quarterstoChoose.get()
+           sheet.cell(row=1, column=6).value = "Total Students: " + str(len(studentsToAdd))
+           studentsToAdd.clear()
+           wb3.save(filename="studentReport.xlsx")
+           tk.Label(admin, text="Report stored in the 'studentReport.xlsx' Excel file.", font=("Arial bold", 15),
+                    bg="light blue", wraplength=400).place(x=46, y=400)
+
+
+       # Else if the admin didn't choose a grade and the type is not prize picker, then it
+       # tells the admin to select a grade.
+       if (report_var.get() == "" and Type != "Prize Picker"):
+
+
+           # Label placed, so it hides all the other error messages.
+           tk.Label(admin, text="Report stored in the 'studentReport.xlsx' Excel file.", font=("Arial bold", 15),
+                    bg="light blue", wraplength=400, fg = "light blue").place(x=46, y=400)
+
+
+           tk.Label(admin, text="Select a grade.", bg="light blue",
+                    fg="red", font=("Arial bold", 15)).place(x=174, y=400)
+
+
+   # Else if the admin didn't choose a quarter, then it tells the admin.
+   elif (quarterstoChoose.get() == ""):
+       tk.Label(admin, text="Please choose a Quarter.", fg="red", bg="light blue", font=("Arial bold", 15)).place(
+           x=493, y=175)
+
+
+
+
+# This function picks the winners of the people with the most points in each grade.
+# If there are multiple people with the most points, then they are awarded a prize as well
+# so there can be multiple winners from each grade.
+def prizePickerPoints():
+   global admin
+   if (messagebox.askquestion("askquestion",
+                              "Are you sure you want to pick the winners for most points?") == "yes"):
+       # sets up the list of grades and winning students and also sorts the list of students in greatest to the lowest point order.
+       grades = [9, 10, 11, 12]
+       winningStudents = []
+       studentsInformation.sort(key=lambda x: x.points, reverse=True)
+
+
+       for i in range(0, len(studentsInformation)):
+           for j in range(0, len(grades)):
+
+
+               # For all students and for all grades, if the student in the list is in a grade that hasn't been picked yet,
+               # then he is declared a winner.
+               if (int(studentsInformation[i].grade) == int(grades[j])):
+
+
+                   # Puts all the students information into the student variable, gets rid of the grade
+                   # because it has been picked, then appends the student into the list of winning students.
+                   student = informationStudents(studentsInformation[i].name, studentsInformation[i].grade,
+                                                 studentsInformation[i].ID, studentsInformation[i].points,
+                                                 studentsInformation[i].email, studentsInformation[i].events)
+                   grades.pop(j)
+                   winningStudents.append(student)
+
+
+                   # pointCount means the amount of points the person with the most points in that grade.
+                   pointCount = studentsInformation[i].points
+                   for k in range(i + 1, len(studentsInformation)):
+
+
+                       # For all the students beside the person who just won, if they have the same amount of points
+                       # as the person with the most points, then they also get the grand prize as well.
+                       # They also need to be in the same grade as that person.
+                       if (studentsInformation[k].points == pointCount and
+                               studentsInformation[k].grade == studentsInformation[i].grade):
+
+
+                           # Stores the students information in the student variable and adds them to the list of winners.
+                           student = informationStudents(studentsInformation[i].name, studentsInformation[i].grade,
+                                                         studentsInformation[i].ID, studentsInformation[i].points,
+                                                         studentsInformation[i].email, studentsInformation[i].events)
+                           winningStudents.append(student)
+
+
+                       # Else if the pointCount is not equal to the points that the current person has, then it means
+                       # no one else has the same points as the top person anymore, so it stops.
+                       elif (studentsInformation[k].points != pointCount):
+                           break
+                   break
+
+
+           # If there are no more grades to pick winners from, it stops.
+           if (len(grades) == 0):
+               break
+
+
+       # If there are absolutely no students to pick from (New Quarter), then it says so.
+       if (len(studentsInformation) == 0):
+           # Label placed so the error messages are hidden.
+           tk.Label(admin, text="Winners stored in the 'studentsWithPrizes.xlsx' Excel file.", font=("Arial bold", 15),
+                    bg="light blue", wraplength=400, fg = "light blue").place(x=821, y=400)
+
+
+           tk.Label(admin, text="No students in list to pick.", font=("Arial bold", 15),
+                    fg="red", bg="light blue").place(x=865, y=400)
+
+
+       # Else if there are students to pick from, it runs the listofInformation function, more details described in that function on what it does.
+       else:
+           listofInformation("Prize Picker", winningStudents, "Most Points")
+
+
+
+
+# This function picks a winner from each grade randomly.
+# Only 4 people can be chosen, one from each grade.
+def prizePickerRandomized():
+   global admin
+   if (messagebox.askquestion("askquestion",
+                              "Are you sure you want to pick random winners?") == "yes"):
+       # If there are students to pick from, then it runs the If statement.
+       if (len(studentsInformation) != 0):
+
+
+           # Lists for the winning students, and the grades that are available to choose from.
+           winningStudents = []
+           gradeLevelsBefore = []
+
+
+           # For all students, append their grade in a list.
+           for i in range(0, len(studentsInformation)):
+               gradeLevelsBefore.append(studentsInformation[i].grade)
+
+
+           # This removes duplicate grades from the list, leaving 1-4 available grades to choose from.
+           gradeLevelsAfter = list(set(gradeLevelsBefore))
+
+
+           # If there aren't 4 grades to choose from, it prints the available grades with students to choose from.
+           if (len(gradeLevelsAfter) != 4):
+               print("Grades with available students:")
+               for i in range(0, len(gradeLevelsAfter)):
+                   print("Grade: " + str(gradeLevelsAfter[i]))
+
+
+           while True:
+
+
+               # If there are no more grades left to choose from, or the size of all the students is equal
+               # to all the winning students, the function stops.
+               if (len(gradeLevelsAfter) == 0 or len(studentsInformation) == len(winningStudents)):
+                   break
+
+
+               # This boolean is set to false, used later in the function.
+               # random.randint is used to choose a random number, then the person that is in that number on the list
+               # gets a prize, assuming they weren't picked twice randomly.
+               duplicateWinner = False
+               randomNumber = random.randint(0, len(studentsInformation) - 1)
+
+
+               # For all winning students, if their id matches the randomly chosen winner, it means that the student
+               # is a duplicate winner.
+               for i in range(0, len(winningStudents)):
+                   if studentsInformation[randomNumber].ID == winningStudents[i].ID:
+                       duplicateWinner = True
+
+
+               # For all grade levels to choose from, if the randomly chosen student isn't a duplicate winner and their grade
+               # is in the list of all grades to choose from, and if they also have more than 0 points, they are a winner.
+               for i in range(0, len(gradeLevelsAfter)):
+                   if (duplicateWinner == False and studentsInformation[randomNumber].grade == gradeLevelsAfter[i] and
+                           studentsInformation[i].points != 0):
+                       # Gets rid of the grade level the student is in, because it was just picked.
+                       gradeLevelsAfter.pop(i)
+
+
+                       # This stores the randomly chosen winners information into the student variable and appends it
+                       # to the list of winningStudents.
+                       student = informationStudents(studentsInformation[randomNumber].name,
+                                                     studentsInformation[randomNumber].grade,
+                                                     studentsInformation[randomNumber].ID,
+                                                     studentsInformation[randomNumber].points,
+                                                     studentsInformation[randomNumber].email,
+                                                     studentsInformation[randomNumber].events)
+                       winningStudents.append(student)
+
+
+           # This then runs the listofInformation function in which more details are described in that function on what it does.
+           listofInformation("Prize Picker", winningStudents, "Random")
+
+
+       # If there are no students to pick from, then it says so.
+       elif (len(studentsInformation) == 0):
+           # Label placed, so it hides all the error messages.
+           tk.Label(admin, text="Winners stored in the 'studentsWithPrizes.xlsx' Excel file.", font=("Arial bold", 15),
+                    bg="light blue", wraplength=400, fg = "light blue").place(x=821, y=400)
+
+
+           tk.Label(admin, text="No students in list to pick.", font=("Arial bold", 15),
+                    fg="red", bg="light blue").place(x=865, y=400)
+
+
+# Students are guaranteed points if they have 5 and 10 points, people with 10 will receive 2 prizes.
+def prizePickerCorrespondingPoints():
+   winningStudents = []
+   if (messagebox.askquestion("askquestion",
+                              "Are you sure you want to pick winners that have more than 5 or 10 points?") == "yes"):
+       for i in range(0, len(studentsInformation)):
+           student = informationStudents(studentsInformation[i].name,
+                                         studentsInformation[i].grade,
+                                         studentsInformation[i].ID,
+                                         studentsInformation[i].points,
+                                         studentsInformation[i].email,
+                                         studentsInformation[i].events)
+           if (studentsInformation[i].points >= 10):
+               winningStudents.append(student)
+           if (studentsInformation[i].points >= 5):
+               winningStudents.append(student)
+       if (len(studentsInformation) == 0):
+           tk.Label(admin, text="Winners stored in the 'studentsWithPrizes.xlsx' Excel file.", font=("Arial bold", 15),
+                    bg="light blue", wraplength=400, fg="light blue").place(x=821, y=400)
+           tk.Label(admin, text="No students in list to pick.", font=("Arial bold", 15),
+                    fg="red", bg="light blue").place(x=865, y=400)
+       else:
+           tk.Label(admin, text="Winners stored in the 'studentsWithPrizes.xlsx' Excel file.", font=("Arial bold", 15),
+                   bg="light blue", wraplength=400, fg="black").place(x=821, y=400)
+
+
+       listofInformation("Prize Picker", winningStudents, "Random")
+
+
+# This function gathers all the information entered by the new attendee once they press the submit button.
+# If some information is incorrect, the function will tell the user that.
+def validInformationGetter():
+   global entryError, gradeError, eventError, entryValid, gradeValid, eventValid, idNumberError, alreadySignedUpLabel2
+   global successLabel, errorLabel, emailError, correctInput, nameError, codeErrorLabel, successfulEntry
+
+
+   # All the booleans used in the function.
+   adminAccess = False
+   eventValid = False
+   gradeValid = False
+   successfulEntry = False
+   entryValid = False
+   alreadySignedUpBool = False
+   validEmail = False
+   nameValid = False
+   correctInput = 0
+
+
+   # Destroys all the labels if they were previously placed down.
+   successLabel.destroy()
+   codeErrorLabel.destroy()
+   errorLabel.destroy()
+   alreadySignedUpLabel2.destroy()
+   idNumberError.destroy()
+   emailError.destroy()
+   entryError.destroy()
+   nameError.destroy()
+   eventError.destroy()
+   gradeError.destroy()
+   codeErrorLabel.destroy()
+   alreadySignedUpLabel2.destroy()
+
+
+   # If any of the required entries are empty, then it runs this code.
+   if (firstName_var.get() == "" or lastName_var.get() == "" or IDNumber_var.get() == "" or email_var.get() == ""):
+
+
+       # This tells the student that one of the required entries are empty, and they should fill it out.
+       entryError = tk.Label(root, text="One or more of the required entries are empty.", background="light blue",
+                             fg="red", font=("Arial bold", 10))
+       entryError.place(x=530, y=578)
+
+
+   # Else if all the required entries are filled out, it runs this code.
+   elif (firstName_var.get() != "" and lastName_var.get() != "" and
+         IDNumber_var.get() != "" and email_var.get() != ""):
+
+
+       # Opens all the valid characters to use in your name.
+       characters = open('letters')
+
+
+       # For each valid character and for each character in the users first name, if the character matches a valid character,
+       # correctInput gets added 1 to it.
+       for line in characters:
+           for i in range(0, len(firstName_var.get())):
+               if (line.strip() == firstName_var.get()[i]):
+                   correctInput += 1
+
+
+           # For each character in the users last name, if the character matches a valid character, correctInput gets added 1 to it.
+           for i in range(0, len(lastName_var.get())):
+               if (line.strip() == lastName_var.get()[i]):
+                   correctInput += 1
+
+
+       # If correctInput doesn't equal the length of the users first name and last name added up together, that means
+       # that there was an invalid character like a number, and it tells the user to fix the problem.
+       if (correctInput != (len(firstName_var.get())) + len(lastName_var.get())):
+           nameError.destroy()
+           nameError = tk.Label(root, text="First and Last Names should only include letters.", fg="red",
+                                bg="light blue", font=("Arial bold", 10))
+           nameError.place(x=528, y=426)
+
+
+       # Else if correctInput does equal the length of the users first name and last name, the name is valid.
+       else:
+           nameValid = True
+
+
+       # Closes the file of characters and opens the file of valid student IDs.
+       characters.close()
+
+
+       wb_obj = openpyxl.load_workbook("heritageIDs.xlsx")
+       sheet_obj = wb_obj.active
+
+
+       # For each student ID in the file, if the users entered ID matches one of the IDs in the file, that means
+       # the ID is valid.
+       for i in range(1, sheet_obj.max_row):
+           if (str(sheet_obj.cell(row = i, column = 1).value) == str(IDNumber_var.get())):
+               entryValid = True
+
+
+       # Else if the students entered ID wasn't valid and the ID doesn't equal the admin ID, it then tells the student
+       # that the ID they entered wasn't valid.
+       if (entryValid == False and IDNumber_var.get() != "0192837465"):
+           idNumberError = tk.Label(root, text="Invalid Student ID",
+                                    background="light blue", fg="red", font=("Arial bold", 10))
+           idNumberError.place(x=532, y=578)
+
+
+       # Opens the sheet full of valid emails
+       wb_obj = openpyxl.load_workbook("heritageEmails.xlsx")
+       sheet_obj = wb_obj.active
+
+
+       # For each email in the file, it checks if it matches the student entered one.
+       for i in range(1, sheet_obj.max_row):
+           if (sheet_obj.cell(row = i, column = 1).value == email_var.get()):
+               validEmail = True
+
+
+       # If the email isn't valid, then it tells the student and tells them to try again.
+       if (validEmail == False):
+           emailError = tk.Label(root, text="Invalid School Email, please try again.", background="light blue",
+                                 font=("Arial bold", 10), fg="red")
+           emailError.place(x=530, y=500)
+
+
+       # If all the entries match the admin login, then it brings up the admin panel.
+       if (firstName_var.get() == "admin" and lastName_var.get() == "access" and
+               IDNumber_var.get() == "0192837465" and email_var.get() == "0"):
+           # This destroys all the error labels, then sets a bool to true indicating that the admin panel was brought up,
+           # Then it runs the admin function and erases all the entries entered.
+           emailError.destroy()
+           idNumberError.destroy()
+           gradeError.destroy()
+           eventError.destroy()
+           adminAccess = True
+           adminAccessor()
+           eraseEntries()
+
+
+   # If the user didn't enter admin credentials, then it runs this code.
+   if (adminAccess == False):
+
+
+       # If the user didn't choose a grade level, it tells the user to do so.
+       if (grade_var.get() == ""):
+           gradeError = tk.Label(root, text="Please choose your grade level.", background="light blue", fg="red",
+                                 font=("Arial bold", 10))
+           gradeError.place(x=850, y=579)
+
+
+       # Else if the user did choose a grade level, then it puts the gradeValid boolean as true.
+       elif (grade_var.get() != ""):
+           gradeValid = True
+
+
+       # If the user didn't choose an event, then it tells the user to do so.
+       if (menuEvents.get() == ""):
+           eventError = tk.Label(root, text="Please choose the event you are attending.", background="light blue",
+                                 fg="red", font=("Arial bold", 10))
+           eventError.place(x=628, y=692)
+
+
+       # Else if the user did choose an enent, it puts the eventValid boolean as true.
+       elif (menuEvents.get() != ""):
+           eventValid = True
+
+
+       # If all the entries are valid, then it runs this code.
+       if (entryValid == True and gradeValid == True and eventValid == True and validEmail == True and
+               nameValid == True):
+
+
+           # For all students, if the "new attendee" has already signed up, then it prompts the user to use the other screen
+           # which is a faster way to get a point.
+           for i in range(0, len(studentsInformation)):
+               if (studentsInformation[i].ID == IDNumber_var.get() or studentsInformation[i].email == email_var.get()):
+                   alreadySignedUpBool = True
+
+
+           # Else if the user is a new attendee, then it runs this code.
+           if (alreadySignedUpBool == False):
+
+
+               # For all ongoing events, if the event the user picked matches an ongoing event and the code the user put in
+               # also matches the code of the ongoing event, then the user successfully entered everything correctly, and
+               # it enters all the entered information into a function which adds them to the database and adds a point to
+               # their name.
+               for i in range(0, len(validCodes)):
+                   if (validCodes[i].event == menuEvents.get() and validCodes[i].code == int(codeInput_var.get())):
+                       successfulEntry = True
+                       pointValue(firstName_var.get() + ' ' + lastName_var.get(),
+                                  grade_var.get(), int(IDNumber_var.get()), email_var.get(), menuEvents.get(), i)
+                       successLabel = tk.Label(root, text="Success!", bg="light blue", font=("Arial bold", 12))
+                       successLabel.place(x=727, y=580)
+                       eraseEntries()
+                       break
+
+
+               # Else if the code and event didn't match an ongoing event, it tells the user.
+               if (successfulEntry == False):
+                   codeErrorLabel = tk.Label(root, text="Invalid Code or Event", bg="light blue", fg="red",
+                                             font=("Arial bold", 10))
+                   codeErrorLabel.place(x=727, y=579)
+
+
+           # Else if the user had already signed up, it tells the user to use the other screen to log in and get a point instead.
+           elif (alreadySignedUpBool == True):
+               alreadySignedUpLabel2 = tk.Label(root,
+                                                text="ID or Email already signed up. Please sign in with the other page." +
+                                                     " If you think this is false, please visit the front office.",
+                                                wraplength=300, font=("Arial bold", 10), bg="light blue", fg="red")
+               alreadySignedUpLabel2.place(x=620, y=690)
+
+
+
+
+# This is the function that gathers all the information the user entered if the user has previously attended an event before.
+# If the information the user entered is incorrect, this function will tell the user so.
+def validInformationGetterOld():
+   global IDError, errorLabel, eventError, invalidEmail, enteredEmail, enteredID, successLabel, IDNumber_var
+   global enteredIDIfStatement, enteredEmailIfStatement, emptyEntry, successfulEntry, codeErrorLabel, email_var
+
+
+   # Destroys all the error labels if they were placed previously.
+   errorLabel.destroy()
+   IDError.destroy()
+   invalidEmail.destroy()
+   successLabel.destroy()
+   eventError.destroy()
+   codeErrorLabel.destroy()
+
+
+   # All the booleans used for this function.
+   successfulEntry = False
+   enteredIfStatement = False
+   enteredEmail = False
+   enteredID = False
+   enteredIDIfStatement = False
+   enteredEmailIfStatement = False
+
+
+   # If the user picked an event, then it runs this code.
+   if (menuEvents.get() != ""):
+
+
+       # If the email variable is empty and the ID variable is not, that means the user entered an ID instead of an email.
+       if (email_var.get() == "" and IDNumber_var.get() != ""):
+           enteredIDIfStatement = True
+
+
+           # For all students, if the user entered ID matches an ID in the list of students, then
+           # the ID is valid.
+           for i in range(0, len(studentsInformation)):
+               if (str(IDNumber_var.get()) == str(studentsInformation[i].ID)):
+                   enteredID = True
+
+
+                   # For all the ongoing events, if the event and code matches the user entered event and code,
+                   # then the user entered everything successfully.
+                   for k in range(0, len(validCodes)):
+                       if (validCodes[k].event == menuEvents.get() and validCodes[k].code == int(
+                               codeInput_var.get())):
+                           successfulEntry = True
+
+
+                           # For all the people who attended the event the user is attending, if the users ID
+                           # matches an ID on that list, that means that the user has attended that event and is trying
+                           # to get another point.
+                           for j in range(0, len(validCodes[k].people)):
+                               if (validCodes[k].people[j].ID == IDNumber_var.get()):
+                                   enteredIfStatement = True
+
+
+                           # If the user didn't enter the If statement, that means that the user didn't already sign in for that event
+                           # and is awarded with a point.
+                           if (enteredIfStatement == False):
+
+
+                               # This destroys the error label, and puts down a success label.
+                               errorLabel.destroy()
+                               successLabel = tk.Label(root, text="Success!", bg="light blue", font=("Arial bold", 12))
+                               successLabel.place(x=727, y=510)
+
+
+                               # It then enters the users ID into the pointValue function in which more details can be found in that function.
+                               pointValue("", 0, int(IDNumber_var.get()), "", menuEvents.get(), k)
+
+
+                               # Erases all the entries entered by the user and sets the event to blank.
+                               eraseEntriesOldID()
+
+
+                           # Else if the user did enter the If statement, that means that the user is trying to get another point
+                           # that they already received, so it will say that they already entered.
+                           elif (enteredIfStatement == True):
+                               errorLabel.destroy()
+                               errorLabel = tk.Label(root, text="Entry was already added.",
+                                                     background="light blue", fg="red",
+                                                     font=("Arial bold", 10))
+                               errorLabel.place(x=675, y=620)
+                           break
+
+
+                   # If this is false, that means that the user entered an invalid code or event, and it will tell the user that.
+                   if (successfulEntry == False):
+                       codeErrorLabel = tk.Label(root, text="Invalid Code or Event", bg="light blue", fg="red",
+                                                 font=("Arial bold", 10))
+                       codeErrorLabel.place(x=695, y=510)
+                   break
+
+
+       # If the email variable isn't empty and the ID variable is, that means the user decided to
+       # enter their email instead of their ID.
+       elif (email_var.get() != "" and IDNumber_var.get() == ""):
+           enteredEmailIfStatement = True
+
+
+           # For all students, if the user entered email matches an email in that list, that means the email is valid.
+           for i in range(0, len(studentsInformation)):
+               if (email_var.get() == studentsInformation[i].email):
+                   enteredEmail = True
+
+
+                   # For all ongoing events, if the user entered event and code matches an event and code in the list, that
+                   # means that the user successfully entered everything correctly.
+                   for k in range(0, len(validCodes)):
+                       if (validCodes[k].event == menuEvents.get() and validCodes[k].code == int(
+                               codeInput_var.get())):
+                           successfulEntry = True
+
+
+                           # For all the people who attended the event the user is attending, if the users email is on that list,
+                           # that means the user has already received a point for this event.
+                           for j in range(0, len(validCodes[k].people)):
+                               if (validCodes[k].people[j].email == email_var.get()):
+                                   enteredIfStatement = True
+
+
+                           # Else if the user didn't enter the If statement above, that means the user hasn't attended that event yet
+                           # and is awarded a point.
+                           if (enteredIfStatement == False):
+
+
+                               # Destroys the error label and places the success label.
+                               errorLabel.destroy()
+                               successLabel = tk.Label(root, text="Success!", bg="light blue", font=("Arial bold", 12))
+                               successLabel.place(x=727, y=510)
+
+
+                               # Runs the pointValue function, more details described in that function.
+                               pointValue("", 0, studentsInformation[i].ID, "", menuEvents.get(), k)
+
+
+                               # Erases all the entries the user entered and sets the events to blank.
+                               eraseEntriesOldEmail()
+
+
+                           # Else if the user did enter the If statement, it tells the user that their entry was already added.
+                           elif (enteredIfStatement == True):
+                               errorLabel.destroy()
+                               errorLabel = tk.Label(root, text="Entry was already added.",
+                                                     background="light blue", fg="red",
+                                                     font=("Arial bold", 10))
+                               errorLabel.place(x=675, y=618)
+                           break
+
+
+                   # Else if successfulEntry is false, it means that the user entered an incorrect event or code, and it tells the user that.
+                   if (successfulEntry == False):
+                       codeErrorLabel = tk.Label(root, text="Invalid Code or Event", bg="light blue", fg="red",
+                                                 font=("Arial bold", 10))
+                       codeErrorLabel.place(x=695, y=510)
+                   break
+
+
+       # Else if the email var and the ID var is empty, that means the user pressed submit without entering their information,
+       # and it tells the user that.
+       elif (email_var.get() == "" and IDNumber_var.get() == ""):
+           emptyEntry = tk.Label(root, text="The required entry is empty.", bg="light blue", font=("Arial bold", 10),
+                                 fg="red")
+           emptyEntry.place(x=652, y=428)
+
+
+       # If the user entered their ID but their ID is not on the list of previous attendees, then it tells the user that it is invalid.
+       # (Even though it could be valid if the user signed up on the new attendees screen.)
+       if (enteredID == False and enteredIDIfStatement == True):
+           emptyEntry.destroy()
+           IDError = tk.Label(root, text="Invalid ID, please try again.", bg="light blue", font=("Arial bold", 10),
+                              fg="red")
+           IDError.place(x=652, y=428)
+
+
+       # This is the same process as the code above, but the user entered their email instead of their student ID.
+       # It tells the user that their email was invalid, and they should try again.
+       elif (enteredEmail == False and enteredEmailIfStatement == True):
+           emptyEntry.destroy()
+           invalidEmail = tk.Label(root, text="Invalid Email, please try again.", bg="light blue",
+                                   font=("Arial bold", 10), fg="red")
+           invalidEmail.place(x=652, y=428)
+
+
+   # Else if the user didn't pick an event, it tells the user to choose the event they are attending.
+   elif (menuEvents.get() == ""):
+       eventError.destroy()
+       eventError = tk.Label(root, text="Please choose the event you are attending.", background="light blue",
+                             fg="red", font=("Arial bold", 10))
+       eventError.place(x=628, y=620)
+
+
+
+
+# For the old attendees screen, there is a button that switches the entries from ID or email depending on what the user wants to enter.
+# This function changes the entries from ID to email.
+def switchEntrytoEmail():
+   global switchButtonID, email_labelOld, email_entry_old
+   global emptyEntry, IDError, successLabel
+
+
+   # Destroys all the labels used for the screen if the user were to enter their student ID instead.
+   IDNumber_entryOld.delete(first=0, last=len(IDNumber_var.get()))
+   IDNumber_var.set("")
+   IDNumber_label.destroy()
+   IDNumber_entryOld.destroy()
+   switchButtonEmail.destroy()
+   IDError.destroy()
+   emptyEntry.destroy()
+   successLabel.destroy()
+
+
+
+
+   # Places a label, entry, and button for the user to enter their email,
+   # and a button for the user to click if they want to enter their ID instead.
+   # Also places a label telling the user if they forgot their student email, and to enter their ID instead.
+   email_labelOld = tk.Label(root, text="School Email", font=("Arial bold", 12), bg="light blue")
+   email_labelOld.place(x=647, y=374)
+   email_entry_old = tk.Entry(root, textvariable=email_var, font=("Arial", 12), width=25)
+   email_entry_old.place(x=655, y=402)
+   switchButtonID = tk.Button(root, text="Enter your ID Instead", command=switchEntrytoID, bg="#BDB3FF",
+                              font=("Arial bold", 9), width = 20)
+   switchButtonID.place(x=735, y=476)
+
+
+
+
+# This function changes the entries from email to ID for the old attendees screen, so they can enter either their email or ID
+# in order to get a point.
+def switchEntrytoID():
+   global IDNumber_label, IDNumber_entryOld, switchButtonEmail
+   global  emptyEntry, invalidEmail, successLabel
+
+
+   # Destroys all the labels used for the screen if the user were to enter their email instead.
+   email_entry_old.delete(first=0, last=len(email_var.get()))
+   email_var.set("")
+   email_labelOld.destroy()
+   email_entry_old.destroy()
+   emptyEntry.destroy()
+   switchButtonID.destroy()
+   successLabel.destroy()
+   invalidEmail.destroy()
+
+
+   # Places a label, entry, and button for the user to enter their student ID, and a button for the user
+   # to click if they want to enter their email instead.
+   # There is also a label telling the user if they forgot their student ID, and to enter their email instead.
+   IDNumber_label = tk.Label(root, text="Student ID Number", bg="light blue", font=("Arial bold", 12))
+   IDNumber_label.place(x=647, y=374)
+
+
+   IDNumber_entryOld = tk.Entry(root, textvariable=IDNumber_var, font=("Arial", 12), width=25)
+   IDNumber_entryOld.place(x=655, y=402)
+
+
+   switchButtonEmail = tk.Button(root, text="Enter Your Email Instead", command=switchEntrytoEmail, bg="#BDB3FF",
+                                 font=("Arial bold", 9), width=20)
+   switchButtonEmail.place(x=735, y=476)
+
+
+
+
+# This function erases all the entries entered by the user if they were a new attendee.
+def eraseEntries():
+   firstName_entry.delete(first=0, last=len(firstName_var.get()))
+   lastName_entry.delete(first=0, last=len(lastName_var.get()))
+   IDNumber_entry.delete(first=0, last=len(IDNumber_var.get()))
+   email_entry.delete(first=0, last=len(email_var.get()))
+   codeEntry.delete(first=0, last=len(codeInput_var.get()))
+   menuEvents.set("")
+   grade_var.set("")
+
+
+
+
+# This function erases all the entries entered by the user if they were an old attendee and entering their ID.
+def eraseEntriesOldID():
+   IDNumber_entryOld.delete(first=0, last=len(IDNumber_var.get()))
+   code_EntryOld.delete(first=0, last=len(codeInput_var.get()))
+   menuEvents.set("")
+
+
+
+
+# This function erases all the entries entered by the user if they were an old attendee and entering their email.
+def eraseEntriesOldEmail():
+   email_entry_old.delete(first=0, last=len(email_var.get()))
+   code_EntryOld.delete(first=0, last=len(codeInput_var.get()))
+   menuEvents.set("")
+
+
+
+
+# This function creates the screen for the new attendees, if the user presses the button to switch from the old
+# attendees screen to the new attendees screen, this function will be used in order for the change to happen.
+# This function is run and then shown when the program is first ran.
+def newAccounts():
+   global firstName_entry, lastName_entry, email_entry, buttonSubmit, resetEntries, freshmanRadio
+   global sophomoreRadio, juniorRadio, invalidEmail, codeEntryLabel
+   global seniorRadio, alreadySignedUpLabel, alreadySignedUp, IDNumber_entry, IDNumber_entryOld, IDError
+   global notSignedUp, IDNumber_label, codeEntry, styleRadiobutton
+   global first_name_label, last_name_label, student_id_label, school_email_label
+   global grade_level_label, events_label, newPerson, bigNewAccountTitle, alreadySignedUpLabel2
+   global bigOldAccountTitle, errorLabel, eventError, informationError
+   global gradeError, entryError, emptyEntry, successLabel, code_EntryOld, viewInformationofUser
+
+
+   # Destroys all the labels used for the screen if the user was an old attendee instead of a new attendee.
+   # When the program is first ran, to destroy() functions don't do anything and is only used to destroy
+   # labels and entries when switching between the old and new attendees screen.
+   IDNumber_entryOld.destroy()
+   buttonSubmitOld.destroy()
+   invalidEmail.destroy()
+   code_EntryOld.destroy()
+   informationError.destroy()
+   emptyEntry.destroy()
+   notSignedUp.destroy()
+   eventError.destroy()
+   gradeError.destroy()
+   entryError.destroy()
+   IDError.destroy()
+   alreadySignedUpLabel2.destroy()
+   codeEntryLabel.destroy()
+   successLabel.destroy()
+   bigOldAccountTitle.destroy()
+   switchButtonEmail.destroy()
+   switchButtonID.destroy()
+   email_entry_old.destroy()
+   email_labelOld.destroy()
+   errorLabel.destroy()
+   newPerson.destroy()
+   IDNumber_label.destroy()
+
+
+   # Identifies and places all the necessary labels, buttons, entries, styles, and radiobutton to create the new attendees screen.
+   # First, Last, Email, and Grade Labels.
+   first_name_label = tk.Label(root, text="First Name", background="light blue", font=("Arial bold", 12))
+   first_name_label.place(x=533, y=372)
+
+
+   last_name_label = tk.Label(root, text="Last Name", bg="light blue", font=("Arial bold", 12))
+   last_name_label.place(x=702, y=372)
+
+
+   student_id_label = tk.Label(root, text="Student ID Number", bg="light blue", font=("Arial bold", 12))
+   student_id_label.place(x=531, y=522)
+
+
+   school_email_label = tk.Label(root, text="School Email", bg="light blue", font=("Arial bold", 12))
+   school_email_label.place(x=531, y=447)
+
+
+   grade_level_label = tk.Label(root, text="Grade Level", bg="light blue", font=("Arial bold", 15))
+   grade_level_label.place(x=886, y=388)
+
+
+   # First, Last, ID, and Email entries.
+   firstName_entry = tk.Entry(root, textvariable=firstName_var, font=("Arial", 12), width=13)
+   firstName_entry.place(x=535, y=400)
+
+
+   lastName_entry = tk.Entry(root, textvariable=lastName_var, font=("Arial", 12), width=13)
+   lastName_entry.place(x=705, y=400)
+
+
+   IDNumber_entry = tk.Entry(root, textvariable=IDNumber_var, font=("Arial", 12), width=19)
+   IDNumber_entry.place(x=535, y=548)
+
+
+   email_entry = tk.Entry(root, textvariable=email_var, font=("Arial", 12), width=32)
+   email_entry.place(x=535, y=473)
+
+
+   # This button is pressed when the user is done entering all the required information.
+   # It then runs the validInformationGetter function, more details described in that function.
+   buttonSubmit = tk.Button(root, text="Submit", command=validInformationGetter, background="#BDB3FF",
+                            font=("Arial bold", 15), width=20)
+   buttonSubmit.place(x=640, y=613)
+
+
+   # This is used to color and style the radiobutton used for the user to pick their grade level.
+   styleRadiobutton = ttk.Style()
+   styleRadiobutton.configure("Color.TRadiobutton", background="light blue", font=("Arial", 15))
+
+
+   # These radiobutton are used for the user to pick their grade, from Freshman to Senior.
+   freshmanRadio = Radiobutton(root, text="Freshman", variable=grade_var, value=9, style="Color.TRadiobutton")
+   freshmanRadio.place(x=890, y=424)
+
+
+   sophomoreRadio = Radiobutton(root, text="Sophomore", variable=grade_var, value=10, style="Color.TRadiobutton")
+   sophomoreRadio.place(x=890, y=464)
+
+
+   juniorRadio = Radiobutton(root, text="Junior", variable=grade_var, value=11, style="Color.TRadiobutton")
+   juniorRadio.place(x=890, y=504)
+
+
+   seniorRadio = Radiobutton(root, text="Senior", variable=grade_var, value=12, style="Color.TRadiobutton")
+   seniorRadio.place(x=890, y=544)
+
+
+   # This label and button is used to tell the user that if they already had attended an event, that they should
+   # click the button to go to the screen for old attendees.
+   alreadySignedUpLabel = tk.Label(root, text="Already attended an event?", background="light blue",
+                                   font=("Arial bold", 9))
+   alreadySignedUpLabel.place(x=645, y=665)
+
+
+   alreadySignedUp = tk.Button(root, text="Press Here", command=oldAccounts, background="#BDB3FF",
+                               font=("Arial bold", 9))
+   alreadySignedUp.place(x=810, y=662)
+
+
+   # Big title indicating that the user is on the New Attendees screen.
+   bigNewAccountTitle = tk.Label(root, text="New Attendees", bg="light blue", font=("Arial bold", 35))
+   bigNewAccountTitle.place(x=600, y=295)
+
+
+   # This button is used to erase all the entries if the user messed up on multiple entries or there are random
+   # words in the entries. When the button is clicked, it prompts the program to run the eraseEntries function.
+   resetEntries = tk.Button(root, text="Erase Entries", command=eraseEntries, background="#BDB3FF",
+                            font=("Arial bold", 9))
+   resetEntries.place(x=903, y=357)
+
+
+   # This label and entry is used for the user to enter the event code, one of the required entries.
+   codeEntryLabel = tk.Label(root, text="Code", bg="light blue", font=("Arial bold", 12))
+   codeEntryLabel.place(x=766, y=522)
+
+
+   codeEntry = tk.Entry(root, textvariable=codeInput_var, font=("Arial", 12), width=6)
+   codeEntry.place(x=769, y=548)
+
+
+   # Creates the button so the user can switch back to the information screen again.
+   viewInformationofUser = tk.Button(root, text="View your Information", font=("Arial bold", 12), bg="#BDB3FF",
+                                     command=attendeesInformationSwitch, width=18)
+   viewInformationofUser.place(x=675, y=90)
+
+
+
+
+# This function is used to create the screen for old attendees, if the user presses the "alreadySignedUp" button on
+# the new attendees screen, then the button runs this function in which all the elements on the new attendees screen
+# is replaced by the old attendees screen.
+def oldAccounts():
+   global notSignedUp, notSignedUpLabel, IDNumber_entry, notSignedUp, buttonSubmit, buttonSubmitOld
+   global IDNumber_entryOld, newPerson, successLabel, code_EntryOld, alreadySignedUpLabel2
+   global IDNumber_label, switchButtonEmail, bigOldAccountTitle, nameError, emailError
+   global entryError, gradeError, eventError, emptyEntry, invalidEmail, codeEntry
+   global codeEntryLabel, alreadySignedUpLabel, viewInformationofUser, idNumberError
+
+
+   # Destroys all the labels used for the screen if the user was a new attendee instead of an old attendee.
+   # Unlike the newAccounts function, to destroy() functions always does something because it is not shown at
+   # the start when the program is first ran.
+   viewInformationofUser.destroy()
+   idNumberError.destroy()
+   emailError.destroy()
+   nameError.destroy()
+   first_name_label.destroy()
+   bigNewAccountTitle.destroy()
+   invalidEmail.destroy()
+   last_name_label.destroy()
+   student_id_label.destroy()
+   codeEntry.destroy()
+   school_email_label.destroy()
+   successLabel.destroy()
+   bigNewAccountTitle.destroy()
+   codeEntryLabel.destroy()
+   resetEntries.destroy()
+   emptyEntry.destroy()
+   eventError.destroy()
+   gradeError.destroy()
+   grade_level_label.destroy()
+   alreadySignedUpLabel.destroy()
+   alreadySignedUpLabel2.destroy()
+   entryError.destroy()
+   firstName_entry.destroy()
+   lastName_entry.destroy()
+   IDNumber_entry.destroy()
+   email_entry.destroy()
+   buttonSubmit.destroy()
+   freshmanRadio.destroy()
+   sophomoreRadio.destroy()
+   juniorRadio.destroy()
+   seniorRadio.destroy()
+   alreadySignedUp.destroy()
+
+
+   # This identifys and places all the necessary aspects for the old attendees screen.
+   # This label and entry tells the user that they should enter their student ID in the entry below.
+   IDNumber_label = tk.Label(root, text="Student ID Number", bg="light blue", font=("Arial bold", 12))
+   IDNumber_label.place(x=647, y=374)
+
+
+   IDNumber_entryOld = tk.Entry(root, textvariable=IDNumber_var, font=("Arial", 12), width=25)
+   IDNumber_entryOld.place(x=655, y=402)
+
+
+   # This label and button tells the user that if they forgot their student ID, that they can enter their email instead.
+   switchButtonEmail = tk.Button(root, text="Enter Your Email Instead", command=switchEntrytoEmail, bg="#BDB3FF",
+                                 font=("Arial bold", 9), width = 20)
+   switchButtonEmail.place(x=735, y=476)
+
+
+   # This button is used to submit the information the user entered, which runs the validInfomrationGetterOld function.
+   # More details described in that function.
+   buttonSubmitOld = tk.Button(root, text="Submit", command=validInformationGetterOld, background="#BDB3FF",
+                               font=("Arial bold", 15), width=20)
+   buttonSubmitOld.place(x=640, y=542)
+#17
+   # If the user hasn't attended an event yet in the quarter, then the program tells them to click this button,
+   # so they can be put on the screen for new attendees.
+   notSignedUp = tk.Button(root, text="Press Here", command=newAccounts, background="#BDB3FF",
+                           font=("Arial bold", 9))
+   notSignedUp.place(x=810, y=591)
+
+
+   newPerson = tk.Label(root, text="Haven't attended an event?", bg="light blue", font=("Arial bold", 9))
+   newPerson.place(x=645, y=594)
+
+
+   # This label and entry tells the user to enter the code for the event, which is one of the required entries.
+   codeEntryLabel = tk.Label(root, text="Code", bg="light blue", font=("Arial bold", 12))
+   codeEntryLabel.place(x=648, y=449)
+
+
+   code_EntryOld = tk.Entry(root, textvariable=codeInput_var, font=("Arial", 12), width=6)
+   code_EntryOld.place(x=651, y=477)
+
+
+   # This is the big title for the returning attendees, indicating that they are on the screen for Returning Attendees.
+   bigOldAccountTitle = tk.Label(root, text="Returning Attendees", bg="light blue", font=("Arial bold", 35))
+   bigOldAccountTitle.place(x=535, y=295)
+
+
+
+
+# This function is used when the user has put a question in the entry in the helpMenu screen and has submitted it.
+# More details described later in the program and in this function.
+def submitQuestion():
+   global questionstoAnswer_entry, helpMenuScreen, studentQuestions, emptyQ, successfulQ
+   global submitQuestionButton, emptyQuestion, successfulQuestion, questionstoAnswer_entry
+   global charMaxBool, charactersExceeded
+
+
+   # If the emptyQuestion label was placed previously, then the emptyQ boolean would turn true which will run this code that destroys that label.
+   if (emptyQ == True):
+       emptyQuestion.destroy()
+       emptyQ = False
+
+
+   # Alternatively, if the successfulQuestion label was placed previously, then it would destroy the successfulQuestion label and turn the boolean false.
+   elif (successfulQ == True):
+       successfulQuestion.destroy()
+       successfulQ = False
+
+
+   if (charMaxBool == True):
+       charactersExceeded.destroy()
+       charMaxBool = False
+
+
+   # If the user pressed the button to run this function and the question entry was empty, then it will tell the user that the entry box was empty.
+   if (questionstoAnswer_entry.get() == ""):
+       emptyQ = True
+       emptyQuestion = tk.Label(helpMenuScreen, text="Entry Box is empty.", bg="light blue", font=("Arial bold", 9),
+                                fg="red")
+       emptyQuestion.place(x=430, y=685)
+
+
+   # Else if the question entry actually had a question in it, then the question will be appended to the list of studentQuestions
+   # and tell the user that it was successfully added then delete the question from the entry box.
+   elif (questionstoAnswer_entry.get() != ""):
+       # 150 char max
+       if (len(questionstoAnswer_entry.get()) <= 151):
+           successfulQ = True
+           studentQuestions.append(questionstoAnswer_entry.get())
+           successfulQuestion = tk.Label(helpMenuScreen,
+                                         text="Successfully Added! The question will be added to the Q&A once it is "
+                                              "answered.",
+                                         bg="light blue", font=("Arial bold", 9))
+           successfulQuestion.place(x=265, y=685)
+           questionstoAnswer_entry.delete(first=0, last=len(questionstoAnswer_entry.get()))
+       else:
+           charactersExceeded = tk.Label(helpMenuScreen, text = str(len(questionstoAnswer_entry.get())) + " / 150 character max",
+                                         font = ("Arial bold", 9), fg = "red", bg = "light blue")
+           charactersExceeded.place(x = 414, y = 685)
+           charMaxBool = True
+
+
+
+
+# This function is the helpMenu, on the main screen, there is a button saying Help Menu and Q&A and if the user clicks that button, this function will run.
+# This function basically has all the student questions that have been answered, and overall how to use the program.
+def helpMenu():
+   global helpMenuScreen, questionstoAnswer_entry, submitQuestionButton, studentAnsweredQuestions
+
+
+   # Help Menu screen set up.
+   helpMenuScreen = tk.Tk()
+   helpMenuScreen.geometry("995x720")
+   helpMenuScreen.minsize(995, 720)
+   helpMenuScreen.maxsize(995, 720)
+
+
+   helpMenuScreenCanvas = Canvas(helpMenuScreen, bg="light blue", height=800, width=1080)
+   helpMenuScreenCanvas.place(x=-5, y=-5)
+   helpMenuScreenCanvas.create_rectangle(0, 0, 503, 105, fill = "#BDB3FF", outline = "#BDB3FF")
+   helpMenuScreenCanvas.create_rectangle(503, 0, 1000, 105, fill = "#6DE4E0", outline = "#6DE4E0")
+   tk.Label(helpMenuScreen, text = "General Help", font = ("Arial bold", 30),
+            bg = "#BDB3FF").place(x = 121, y = 25)
+   tk.Label(helpMenuScreen, text = "Q & A", font = ("Arial bold", 30),
+            bg = "#6DE4E0").place(x = 686, y = 25)
+   helpMenuHelp = st.ScrolledText(helpMenuScreen, wrap=tk.WORD, width=53, height=26, font=("Arial", 12))
+   helpMenuHelp.place(x=0, y=100)
+   helpMenuHelp.insert(tk.INSERT, "Entry Entering: As a new Attendee, you are greeted " +
+                                                    "with a screen of various different entries, for the First Name "
+                                                    "Entry, you should put your real First Name "
+                                                    + "and for the Last Name entry, you should put your real Last "
+                                                      "Name, for Student ID, you should input the ID shown " +
+                                                    "on your student card and for the email, you should input your "
+                                                    "assigned school email. " +
+                                                    "Then, select your grade level and the event you are attending "
+                                                    "and you will be awarded a point." +
+"""
+
+
+""")
+   helpMenuHelp.insert(tk.INSERT, "New Attendees: As a New Attendee, you " +
+                                                   "should already be on the correct screen which says 'New "
+                                                   "Attendees', but if you are not, press the button below the " +
+                                                   "submit button to switch to the correct screen. You must be a "
+                                               "student at Heritage High School to enter and for more information, "
+                                                   + "look at 'Entry Entering'" +
+"""
+
+
+""")
+   helpMenuHelp.insert(tk.INSERT, "Returning Attendees: For Returning Attendees, you should check in on the page that "
+                                   + "says 'Returning Attendees' and you access that page by clicking on the button "
+                                     "below the submit button. From then, you only need to enter" +
+                                   " your ID or Email to get the point as well as what event you are attending." +
+"""
+
+
+""")
+
+
+   helpMenuHelp.insert(tk.INSERT, "Point System: Each time you attend an event, you get awarded a point and at the "
+                                   "end of each quarter, " +
+                                   "if you have the most points or tied for most points, you get a reward or if you "
+                                   "have at least 1 point, you can randomly get selected to earn a point and there "
+                                   + "is 1 randomly chosen winner from each grade." +
+                                   " You will also receive a prize if you have more than 5 or 10 points." +
+"""
+
+
+""")
+   helpMenuHelp.insert(tk.INSERT, "Rewards: Book from the Library, Free Student Store Drink, Heritage T-Shirt, "
+                               "Extra Credit, Bag of Candy, Terry the T-Wolf Stuffed Animal" +
+"""
+
+
+""")
+   helpMenuHelp.configure(state='disabled')
+
+
+   # This label tells the user to type their question in the entry box below, and then a button to submit that question.
+   questionstoAnswer_label = tk.Label(helpMenuScreen, text="Have a Question? Type it Here!", bg="light blue",
+                                      font=("Arial bold", 14))
+   questionstoAnswer_label.place(x=352, y=592)
+# 610
+   questionstoAnswer_entry = tk.Entry(helpMenuScreen, width=70)
+   questionstoAnswer_entry.place(x=282, y=625)
+
+
+   submitQuestionButton = tk.Button(helpMenuScreen, text="Submit Question", command=submitQuestion,
+                                    font=("Arial bold", 10), bg="#BDB3FF")
+   submitQuestionButton.place(x=427, y=650)
+
+
+
+
+   # This is used to create the ScrolledText in which it is used to display all the students questions and the answer to those questions.
+   helpMenuQA = st.ScrolledText(helpMenuScreen, wrap=tk.WORD, width=53, height=26, font=("Arial", 12))
+   helpMenuQA.place(x=498, y=100)
+   # For all the answered questions, insert them into the ScrolledText.
+   # The Questions and Answers are formatted so that each question and answer has at least one line between the two.
+   for i in range(0, len(studentAnsweredQuestions)):
+       helpMenuQA.insert(tk.INSERT, "Question: " +
+                         """
+""" + studentAnsweredQuestions[i].question +
+                         """
+""" + "Answer: " +
+                         """
+""" + studentAnsweredQuestions[i].answer +
+                         """
+
+
+""")
+   helpMenuQA.configure(state='disabled')
+
+
+
+
+# This function shows all the upcoming and past events as well as the point leaderboard for the quarter.
+def eventsAndLeaderboard():
+   # Screen set up for the events and leaderboard.
+   newScreen3 = tk.Tk()
+   newScreen3.geometry("1130x700")
+   screen3 = Canvas(newScreen3, height=900, width=1200, bg="light blue")
+   screen3.place(x=-5, y=-5)
+   newScreen3.minsize(1130, 700)
+   newScreen3.maxsize(1130, 700)
+
+
+   # The label displays Upcoming Events and the treeview is used to list all the upcoming events.
+   # Most of the code is just setting up the treeview, so it looks good.
+   tk.Label(newScreen3, text="Upcoming Events", bg="light blue", font=("Arial bold", 30)).place(x=140, y=25)
+   upcomingEventsTreeview = ttk.Treeview(newScreen3, selectmode='browse', height=11)
+   upcomingEventsTreeview.place(x=75, y=80)
+   upcomingScrollbar = ttk.Scrollbar(newScreen3, orient="vertical", command=upcomingEventsTreeview.yview)
+   upcomingScrollbar.place(x=527, y=81, relheight = 0.348)
+   upcomingEventsTreeview['show'] = 'headings'
+   upcomingEventsTreeview["columns"] = ("1", "2", "3")
+   upcomingEventsTreeview.column("1", width=150, anchor='c')
+   upcomingEventsTreeview.column("2", width=150, anchor='c')
+   upcomingEventsTreeview.column("3", width=150, anchor='c')
+   upcomingEventsTreeview.heading("1", text="Place")
+   upcomingEventsTreeview.heading("2", text="Date")
+   upcomingEventsTreeview.heading("3", text="Event")
+   for i in range(0, len(upcomingEventsList)):
+       upcomingEventsTreeview.insert("", 'end', values=(upcomingEventsList[i].place, upcomingEventsList[i].date,
+                                                        upcomingEventsList[i].event))
+
+
+   # The label displays Past Events and the treeview is used to list all the past events.
+   # Most of the code is also just setting up the treeview to make it look good.
+   tk.Label(newScreen3, text="Past Events", bg="light blue", font=("Arial bold", 30)).place(x=195, y=344)
+   pastEventsTreeview = ttk.Treeview(newScreen3, selectmode='browse', height=11)
+   pastEventsTreeview.place(x=75, y=399)
+   pastScrollbar = ttk.Scrollbar(newScreen3, orient="vertical", command=pastEventsTreeview.yview)
+   pastScrollbar.place(x=527, y=400, relheight = 0.348)
+   pastEventsTreeview['show'] = 'headings'
+   pastEventsTreeview["columns"] = ("1", "2", "3")
+   pastEventsTreeview.column("1", width=150, anchor='c')
+   pastEventsTreeview.column("2", width=150, anchor='c')
+   pastEventsTreeview.column("3", width=150, anchor='c')
+   pastEventsTreeview.heading("1", text="Place")
+   pastEventsTreeview.heading("2", text="Date")
+   pastEventsTreeview.heading("3", text="Event")
+   for i in range(0, len(pastEventsList)):
+       pastEventsTreeview.insert("", "end", values=(pastEventsList[i].place, pastEventsList[i].date,
+                                                    pastEventsList[i].event))
+
+
+   # This code sorts it so all the students are sorted from greatest to the least points, it then puts a label saying
+   # "Point Leaderboard" then sets up a treeview in which all the students are appended on to the list for people
+   # who are curious to see who is on the top, or whoever wants to be first in points.
+   studentsInformation.sort(key=lambda x: x.points, reverse=True)
+   tk.Label(newScreen3, text="Point Leaderboard", bg="light blue", font=("Arial bold", 30)).place(x=657, y=25)
+   leaderboardTreeview = ttk.Treeview(newScreen3, selectmode='browse', height=27)
+   leaderboardTreeview.place(x=627, y=80)
+   leaderboardScrollbar = ttk.Scrollbar(newScreen3, orient='vertical', command=leaderboardTreeview.yview)
+   leaderboardScrollbar.place(x=1029, y=81, relheight = 0.805)
+   leaderboardTreeview['show'] = 'headings'
+   leaderboardTreeview['columns'] = ("1", "2", "3")
+   leaderboardTreeview.column("1", width=200, anchor='c')
+   leaderboardTreeview.column("2", width=100, anchor='c')
+   leaderboardTreeview.column("3", width=100, anchor='c')
+   leaderboardTreeview.heading("1", text="Name")
+   leaderboardTreeview.heading("2", text="Grade")
+   leaderboardTreeview.heading("3", text="Points")
+
+
+   # If the student has 0 points, they are not added to the leaderboard.
+   for i in range(0, len(studentsInformation)):
+       if (studentsInformation[i].points != 0):
+           leaderboardTreeview.insert("", "end", values=(studentsInformation[i].name, studentsInformation[i].grade,
+                                                       studentsInformation[i].points))
+
+
+   # This label displays the current quarter.
+   tk.Label(newScreen3, text=currentQuarter, font=("Arial bold", 20), bg="light blue").place(x=766, y=655)
+
+
+
+
+# When the user presses the button that activates this function, it will switch from the New Attendees screen to
+# a screen where the user can enter their information to see their statistics and account information.
+def attendeesInformationSwitch():
+   global buttonSubmit, bigNewAccountTitle, viewInformationButton, bigInformationLabel, moreInformationLabel, switchBackButton
+   global viewInformationofUser, alreadySignedUpLabel, alreadySignedUp, successLabel, codeErrorLabel, errorLabel, alreadySignedUpLabel2
+   global idNumberError, emailError, entryError, nameError, gradeError, eventError
+   # These destroy() functions destroy the labels and buttons that need to be replaced for this part of the program.
+   buttonSubmit.destroy()
+   bigNewAccountTitle.destroy()
+   viewInformationofUser.destroy()
+   alreadySignedUpLabel.destroy()
+   alreadySignedUp.destroy()
+   successLabel.destroy()
+   codeErrorLabel.destroy()
+   errorLabel.destroy()
+   alreadySignedUpLabel2.destroy()
+   idNumberError.destroy()
+   emailError.destroy()
+   entryError.destroy()
+   nameError.destroy()
+   gradeError.destroy()
+   eventError.destroy()
+
+
+   # This button replaces the other button on the new attendees screen, so the correct function can be run.
+   viewInformationButton = tk.Button(root, text="Submit", command=viewUserInformation, bg="#BDB3FF",
+                                     font=("Arial bold", 15), width=20)
+   viewInformationButton.place(x=640, y=613)
+
+
+   # These labels tell the user to only enter their information and that a code and event is not needed.
+   bigInformationLabel = tk.Label(root, text="View User Information", font=("Arial bold", 35), bg="light blue")
+   bigInformationLabel.place(x=515, y=295)
+
+
+   moreInformationLabel = tk.Label(root, text="Code and Event entries are not required.", font=("Arial bold", 15),
+                                   bg="light blue", fg = "red")
+   moreInformationLabel.place(x=570, y=665)
+
+
+   switchBackButton = tk.Button(root, text = "New Attendees Screen", bg = "#BDB3FF", font = ("Arial bold", 12),
+                                command = attendeesInformationSwitchBack, width = 18)
+   switchBackButton.place(x = 675, y = 90)
+
+
+
+
+# When the user presses the button that activates this function, it will switch from the screen where the user can
+# enter their information to see their statistics and information to the New Attendees screen.
+def attendeesInformationSwitchBack():
+   global buttonSubmit, bigNewAccountTitle, viewInformationButton, bigInformationLabel, moreInformationLabel, switchBackButton
+   global viewInformationofUser, alreadySignedUpLabel, alreadySignedUp, informationError
+
+
+   # These destroy() functions destroy the buttons and labels that need to be replaced for the new attendees screen.
+   viewInformationButton.destroy()
+   bigInformationLabel.destroy()
+   moreInformationLabel.destroy()
+   switchBackButton.destroy()
+   informationError.destroy()
+
+
+   # Big title indicating that the user is on the New Attendees screen.
+   bigNewAccountTitle = tk.Label(root, text="New Attendees", bg="light blue", font=("Arial bold", 35))
+   bigNewAccountTitle.place(x=600, y=295)
+
+
+   # Creates the button for the New Attendees screen again.
+   buttonSubmit = tk.Button(root, text="Submit", command=validInformationGetter, background="#BDB3FF",
+                            font=("Arial bold", 15), width=20)
+   buttonSubmit.place(x=640, y=613)
+
+
+   # Creates the button so the user can switch back to the information screen again.
+   viewInformationofUser = tk.Button(root, text="View your Information", font=("Arial bold", 12), bg="#BDB3FF",
+                                     command=attendeesInformationSwitch, width = 18)
+   viewInformationofUser.place(x = 675, y = 90)
+
+
+   # Creates the label for the new attendees screen
+   alreadySignedUpLabel = tk.Label(root, text="Already attended an event?", background="light blue",
+                                   font=("Arial bold", 9))
+   alreadySignedUpLabel.place(x=645, y=665)
+
+
+   # Creates the button for the new attendees screen
+   alreadySignedUp = tk.Button(root, text="Press Here", command=oldAccounts, background="#BDB3FF",
+                               font=("Arial bold", 9))
+   alreadySignedUp.place(x=810, y=662)
+
+
+
+
+# This function is used so that the user can view information about their account,
+# like past events visited, and statistics.
+def viewUserInformation():
+   global informationError
+   # This sorts the list of students from greatest to least points.
+   studentsInformation.sort(key=lambda x: x.points, reverse=True)
+   validInformation = False
+
+
+   # For all the students, if the entered information matches an index in the list, the code continues.
+   for i in range(0, len(studentsInformation)):
+       if (studentsInformation[i].name == firstName_var.get() + ' ' + lastName_var.get() and
+             str(studentsInformation[i].ID) == str(IDNumber_var.get()) and studentsInformation[i].email ==
+            email_var.get() and str(studentsInformation[i].grade) == str(grade_var.get())):
+           validInformation = True
+
+
+           # Screen set up.
+           newScreen5 = tk.Tk()
+           newScreen5.geometry("1000x630")
+           newScreen5.minsize(1000, 630)
+           newScreen5.maxsize(1000, 630)
+           newScreen5Canvas = Canvas(newScreen5, width=1100, height=900, bg="light blue")
+           newScreen5Canvas.place(x=-5, y=-5)
+
+
+           # Labels saying hello to the user, and how they are ranked in points, and their overall information.
+           tk.Label(newScreen5, text="Student Information Screen", font=("Arial bold", 30), bg="light blue",
+                    fg = "white").place(
+               x=237, y=25)
+
+
+           tk.Label(newScreen5, text="Hello, ",
+                    font=("Arial bold", 20), fg = "black", bg="light blue").place(x=60, y=100)
+           tk.Label(newScreen5, text=studentsInformation[0].name + '!', bg="light blue", fg = "black",
+                    font=("Arial bold", 15)).place(x=60, y=140)
+
+
+           tk.Label(newScreen5, text="Your Grade: " + str(studentsInformation[0].grade),
+                    font=("Arial bold", 20), bg="light blue", fg = "black").place(x=60, y=205)
+
+
+           tk.Label(newScreen5, text="Your Student Email: ",
+                    font=("Arial bold", 20), fg = "black", bg="light blue", wraplength=600).place(x=60, y=280)
+
+
+           tk.Label(newScreen5, text=studentsInformation[0].email, font=("Arial bold", 15), bg="light blue", fg = "black").place(
+               x=60, y=320)
+
+
+           tk.Label(newScreen5, text="Point Count for " + currentQuarter +
+                                     ": " + str(studentsInformation[0].points),
+                    font=("Arial bold", 20), bg="light blue", fg = "black").place(x=60, y=385)
+
+
+           tk.Label(newScreen5, text="Your student ID: " + str(studentsInformation[0].ID), font=("Arial bold", 20),
+                    bg="light blue", fg = "black").place(x=60, y=460)
+
+
+           tk.Label(newScreen5, text="You are ranked " + str(1) + ' ' + "out of "
+                                     + str(len(studentsInformation)), bg="light blue", fg = "black",
+                    font=("Arial bold", 20)).place(x=60, y=535)
+
+
+           # This code sets up the treeview and scrollbar for the user to see their past visited events.
+           visitedEvents = ttk.Treeview(newScreen5, selectmode='browse', height=22)
+           visitedEvents.place(x=491, y=100)
+
+
+           visitedEventsScrollbar = ttk.Scrollbar(newScreen5, orient='vertical', command=visitedEvents.yview)
+           visitedEventsScrollbar.place(x=943, y=100, relheight=0.738)
+
+
+           visitedEvents["columns"] = ("1")
+           visitedEvents['show'] = 'headings'
+           visitedEvents.column("1", width=450, anchor='c')
+           visitedEvents.heading("1", text="Events Visited")
+
+
+           # This code appends all the events into the treeview.
+           for j in range(0, len(studentsInformation[i].events)):
+               visitedEvents.insert("", "end", values=((studentsInformation[i].events[j]),))
+
+
+           # Erases all the information in the entries.
+           eraseEntries()
+           break
+
+
+
+
+   if (validInformation == False):
+       informationError = tk.Label(root, text="One of the entries are incorrect.", bg="light blue", fg="red",
+                                   font=("Arial bold", 12))
+       informationError.place(x=642, y=580)
+
+
+# Booleans used for admin functions or options.
+endofQuarterOptionsBool = False
+eventOptionsBool = False
+studentQuestionOptionsBool = False
+studentInvolvedOptionsBool = False
+
+
+# Booleans used for the submitQuestion function.
+emptyQ = False
+successfulQ = False
+charMaxBool = False
+
+
+# Main screen set up.
+root = tk.Tk()
+root.geometry("1540x800")
+root.minsize(1540, 800)
+root.maxsize(1540, 800)
+screen = Canvas(root, height=820, width=1560, bg="light blue")
+screen.place(x=-5, y=-5)
+# String variables used in entries and Radioboxes to gather information about the events,
+# and the students' information.
+firstName_var = tk.StringVar()
+lastName_var = tk.StringVar()
+IDNumber_var = tk.StringVar()
+email_var = tk.StringVar()
+grade_var = tk.StringVar(root)
+menuEvents = tk.StringVar(root)
+codeInput_var = tk.StringVar()
+
+
+# These labels are declared early to be able to use them before they are declared in functions.
+# In cases like destroying these labels so the user knows if they fixed the issue or not in entry entering.
+eventError = tk.Label(root, text="Please choose the event you are attending.", background="light blue")
+entryError = tk.Label(root, text="One or more of the required entries are empty.", background="light blue")
+gradeError = tk.Label(root, text="Please choose your grade level.", background="light blue")
+emailError = tk.Label(root, text="Invalid School Email, please try again.")
+idNumberError = tk.Label(root, text="Student ID Number has a character that isn't a number.", background="light blue")
+successLabel = tk.Label(root, text="Success!", background="light blue")
+errorLabel = tk.Label(root, text="Entry was already added.", background="light blue")
+nameError = tk.Label(root, text="First and Last Names should only include letters.", fg="red", bg="light blue",
+                    font=("Arial bold", 10))
+codeErrorLabel = tk.Label(root, text="Invalid Code or Event", bg="light blue", fg="red", font=("Arial bold", 10))
+alreadySignedUpLabel2 = tk.Label(root,
+                                text="ID or Email already signed up. Please press the button to sign in with the other page." +
+                                     "If you think this is false, please visit the front office.", wraplength=300,
+                                font=("Arial bold", 10),
+                                bg="light blue", fg="red")
+invalidEmail = tk.Label(root, text="Invalid Email, Please try again or " +
+                                  "create your account if you haven't already done so.", bg="light blue",
+                       wraplength=225, font=("Arial", 9))
+informationError = tk.Label(root, text="One of the entries are incorrect.", bg="light blue", fg="red",
+                                   font=("Arial bold", 12))
+emptyEntry = tk.Label(root, text="The required entry is empty.", bg="light blue", font=("Arial bold", 10), fg="red")
+IDError = tk.Label(root, text="Invalid ID, please try again.", bg="light blue", font=("Arial", 9), fg="red")
+email_labelOld = tk.Label(root, text="School Email", font=("Arial bold", 12), bg="light blue")
+bigNewAccountTitle = tk.Label(root, text="New Attendees", bg="light blue", font=("Arial bold", 35))
+codeEntryLabel = tk.Label(root, text="Code", bg="light blue", font=("Arial bold", 12))
+newPerson = tk.Label(root, text="Haven't attended an event?", bg="light blue")
+IDNumber_label = tk.Label(root, text="Student ID Number", bg="light blue", font=("Arial bold", 12))
+bigOldAccountTitle = tk.Label(root, text="Returning Attendees", bg="light blue", font=("Arial bold", 35))
+
+
+# These buttons are declared early in order to use them before they are declared in functions.
+# In cases like switching screens, which you need to destroy the button early in the function
+buttonSubmitOld = tk.Button(root, text="Submit", command=validInformationGetter, background="#BDB3FF")
+notSignedUp = tk.Button(root, text="Press Here", command=newAccounts, background="#BDB3FF")
+switchButtonEmail = tk.Button(root, text="Enter your email", command=switchEntrytoEmail, bg="#BDB3FF",
+                             font=("Arial bold", 9))
+viewInformationofUser = tk.Button(root, text="View your Information", font=("Arial bold", 12), bg="#BDB3FF",
+                                     command=attendeesInformationSwitch, width = 18)
+switchButtonID = tk.Button(root, text="Enter your ID Instead", command=switchEntrytoID, bg="#BDB3FF",
+                              font=("Arial bold", 9), width = 20)
+switchButtonID.place(x=735, y=476)
+
+
+
+
+# These entries are declared early in order to use them before they are declared in functions.
+# In cases like switching screens, which you need to destroy the entry early in the function.
+email_entry_old = tk.Entry(root, textvariable=email_var, font=("Arial", 10), width=25)
+code_EntryOld = tk.Entry(root, textvariable=codeInput_var, font=("Arial", 12), width=6)
+IDNumber_entryOld = tk.Entry(root, textvariable=IDNumber_var)
+
+
+# All the code below creates the radiobuttons for the different events you can attend.
+# This label displays Sporting Events, indicating that the radiobuttons below the label are sporting events.
+SportingEvent_label = tk.Label(root, text="Sporting Events", bg="light blue", fg = "white", font=("Arial bold", 30))
+SportingEvent_label.place(x=158, y=142)
+
+
+SEvent1 = tk.Radiobutton(root, text="Basketball Game", variable=menuEvents, value="Basketball Game",
+                        indicatoron=False, bg="#6DE4E0", width=25, height=4, font=("Arial bold", 13), fg = "black",
+                        selectcolor = "white")
+SEvent1.place(x=177, y=215)
+
+
+SEvent2 = tk.Radiobutton(root, text="Football Game", variable=menuEvents, value="Football Game",
+                        indicatoron=False, bg="#6DE4E0", width=25, height=4, font=("Arial bold", 13),
+                        selectcolor = "white", fg = "black")
+SEvent2.place(x=177, y=303)
+
+
+SEvent3 = tk.Radiobutton(root, text="Soccer Game", variable=menuEvents, value="Soccer Game",
+                        indicatoron=False, bg="#6DE4E0", width=25, height=4, font=("Arial bold", 13),
+                        selectcolor = "white", fg = "black")
+SEvent3.place(x=177, y=391)
+
+
+SEvent4 = tk.Radiobutton(root, text="Volleyball Game", variable=menuEvents, value="Volleyball Game",
+                        indicatoron=False, bg="#6DE4E0", width=25, height=4, font=("Arial bold", 13),
+                        selectcolor = "white", fg = "black")
+SEvent4.place(x=177, y=479)
+
+
+SEvent5 = tk.Radiobutton(root, text="Hockey Game", variable=menuEvents, value="Hockey Game",
+                        indicatoron=False, bg="#6DE4E0", width=25, height=4, font=("Arial bold", 13),
+                        selectcolor = "white", fg = "black")
+SEvent5.place(x=177, y=567)
+
+
+# This label indicates that the radiobuttons below it are non-sporting events.
+nonSportingEvent_label = tk.Label(root, text="Non-Sporting Events", bg="light blue", fg = 'white', font=("Arial bold", 30))
+nonSportingEvent_label.place(x=1037, y=142)
+
+
+NSEvent1 = tk.Radiobutton(root, text="Fun Run", variable=menuEvents, value="Fun Run",
+                         indicatoron=False, bg="#6DE4E0", width=25, height=4, font=("Arial bold", 13),
+                         selectcolor = "white", fg = "black")
+NSEvent1.place(x=1100, y=215)
+
+
+NSEvent2 = tk.Radiobutton(root, text="Movie Night", variable=menuEvents, value="Movie Night",
+                         indicatoron=False, bg="#6DE4E0", width=25, height=4, font=("Arial bold", 13),
+                         selectcolor = "white", fg = "black")
+NSEvent2.place(x=1100, y=303)
+
+
+NSEvent3 = tk.Radiobutton(root, text="Opening Ceremony", variable=menuEvents, value="Opening Ceremony",
+                         indicatoron=False, bg="#6DE4E0", width=25, height=4, font=("Arial bold", 13),
+                         selectcolor = "white", fg = 'black')
+NSEvent3.place(x=1100, y=391)
+
+
+NSEvent4 = tk.Radiobutton(root, text="eSports Tournament", variable=menuEvents, value="eSports Tournament",
+                         indicatoron=False, bg="#6DE4E0", width=25, height=4, font=("Arial bold", 13),
+                         selectcolor = "white", fg = "black")
+NSEvent4.place(x=1100, y=479)
+
+
+NSEvent5 = tk.Radiobutton(root, text="Talent Show", variable=menuEvents, value="Talent Show",
+                         indicatoron=False, bg="#6DE4E0", width=25, height=4, font=("Arial bold", 13),
+                         selectcolor = "white", fg = "black")
+NSEvent5.place(x=1100, y=567)
+
+
+# These create the T-Wolves that are on the top edges of the screen, facing the middle.
+# The T-Wolf is the mascot of the school.
+t_wolf = ImageTk.PhotoImage(Image.open("Heritage.png"))
+t_wolfFlipped = ImageTk.PhotoImage(Image.open("HeritageFlipped.png"))
+tWolfPicture = tk.Label(root, image=t_wolf, bg="light blue")
+tWolfPicture.place(x=0, y=0)
+tWolfPictureFlipped = tk.Label(root, image=t_wolfFlipped, bg="light blue")
+tWolfPictureFlipped.place(x=1380, y=0)
+
+
+# This is the big title on top of the main screen, stating what the program is.
+bigTitle = tk.Label(root, text="Heritage High School Point Tracker", bg="light blue",
+                   font=("Arial bold", 45))
+bigTitle.place(x=300, y=10)
+
+
+# This button once clicked runs the helpMenu function which displays help for the user, including questions that they can ask.
+# More details described in the helpMenu function.
+helpMenu_button = tk.Button(root, text="Help Menu and Q&A", command=helpMenu, bg="#BDB3FF", font=("Arial bold", 12))
+helpMenu_button.place(x=223, y=675)
+
+
+# This button once clicked runs the eventsAndLeaderboard function which displays all the past and upcoming events as well
+# as the leaderboard for points for the current quarter.
+# More details described in the eventsAndLeaderboard function.
+eventsButton = tk.Button(root, text="Past & Upcoming Events", font=("Arial bold", 12), bg="#BDB3FF",
+                        command=eventsAndLeaderboard)
+eventsButton.place(x=1132, y=675)
+
+
+# This loads up the image for the Heritage High School H, which is then turned into a label and placed.
+heritage_H = ImageTk.PhotoImage(Image.open("heritageH.png"))
+heritageBigH = tk.Label(root, image=heritage_H, bg="light blue")
+heritageBigH.place(x=675, y=140)
+
+
+newAccounts()
+adminAccessor()
+root.mainloop()
